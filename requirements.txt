@@ -1,0 +1,9 @@
+google-api-python-client
+yt-dlp
+streamlit
+torch
+transformers
+numpy
+pandas
+plotly
+underthesea
