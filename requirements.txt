@@ -6,4 +6,5 @@ transformers
 numpy
 pandas
 plotly
-$ pip install underthesea
+underthesea==6.1.2
+
