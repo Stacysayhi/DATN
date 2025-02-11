@@ -1,3 +1,4 @@
+--no-build-isolation
 maturin
 google-api-python-client
 yt-dlp
