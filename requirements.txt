@@ -1,3 +1,4 @@
+maturin
 google-api-python-client
 yt-dlp
 streamlit
