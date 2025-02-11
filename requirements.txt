@@ -1,4 +1,5 @@
 maturin==1.8.2
+underthesea-core==1.0.4
 google-api-python-client
 yt-dlp
 streamlit
