@@ -1,4 +1,5 @@
 google-api-python-client
+maturin
 yt-dlp
 streamlit
 torch
