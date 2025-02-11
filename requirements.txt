@@ -6,4 +6,4 @@ transformers
 numpy
 pandas
 plotly
-underthesea==6.1.1
+underthesea==6.8.4
