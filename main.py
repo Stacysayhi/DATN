@@ -109,32 +109,32 @@ def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
                         continue
             except FileNotFoundError:
                 return {
-                    "video_title": info_dict['title'],
-                    "description": description,
-                    "live_chat": [],
-                    "error": f"Live chat file not found: {subtitle_file}"
+                    'video_title': info_dict['title'],
+                    'description': description,
+                    'live_chat': [],
+                    'error': f"Live chat file not found: {subtitle_file}"
                 }
             except Exception as e:
                 print(e)
                 return {
-                    "video_title": info_dict['title'],
-                    "description": description,
-                    "live_chat": [],
-                    "error": f"Error parsing live chat: {str(e)}"
+                    'video_title': info_dict['title'],
+                    'description': description,
+                    'live_chat': [],
+                    'error': f"Error parsing live chat: {str(e)}"
                 }
     except Exception as e:
         print(e)
         return {
-            "video_title": info_dict['title'],
-            "description": description,
-            "live_chat": [],
-            "error": f"An error occurred while downloading live chat: {str(e)}"
+            'video_title': info_dict['title'],
+            'description': description,
+            'live_chat': [],
+            'error': f"An error occurred while downloading live chat: {str(e)}"
         }
 
     return {
-        "video_title": info_dict['title'],
-        "description": description,
-        "live_chat": live_chat_messages
+        'video_title': info_dict['title'],
+        'description': description,
+        'live_chat': live_chat_messages
     }
 
 
@@ -155,9 +155,9 @@ def get_desc_chat(video_url):
     # ]
     # video_title = "KHỚP LỆNH 28/10/2024: ĐÔ VẬT"
     video_info = get_video_details_with_chat(video_url, API_KEY)
-    video_description = video_info[description]
-    video_title = video_info[video_title]
-    video_live_chat = video_info[live_chat]
+    video_description = video_info['description']
+    video_title = video_info['video_title']
+    video_live_chat = video_info['live_chat']
     clean_description = preprocess_model_input_str(
         video_description, video_title)
     clean_live_chat = [
