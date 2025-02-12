@@ -155,9 +155,9 @@ def get_desc_chat(video_url):
     # ]
     # video_title = "KHỚP LỆNH 28/10/2024: ĐÔ VẬT"
     video_info = get_video_details_with_chat(video_url, API_KEY)
-    video_description = video_info['description']
-    video_title = video_info['video_title']
-    video_live_chat = video_info['live_chat']
+    video_description = video_info[description]
+    video_title = video_info[video_title]
+    video_live_chat = video_info[live_chat]
     clean_description = preprocess_model_input_str(
         video_description, video_title)
     clean_live_chat = [
