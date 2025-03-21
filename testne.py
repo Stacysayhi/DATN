@@ -42,7 +42,7 @@ def get_gemini_response(transcript_text, prompt):
     return response.text
 
 # Define the function to extract the transcript details
-def extract_transcript_details(video_id, languages=['en']):
+def extract_transcript_details(video_id, languages=['vi']):
     for language in languages:
         try:
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[language])
