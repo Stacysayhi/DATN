@@ -140,20 +140,7 @@ def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
 
 def get_desc_chat(video_url):
     st.write(f"Analyzing video: {video_url}")
-    # video_description = """Thị trường chứng khoán tiếp tục lình xình trong phiên sáng khi tỷ giá vẫn neo ở mức
-    # cao.\n\nTỷ giá và chứng khoán luôn có mối quan hệ nghịch chiều. Tỷ giá tăng thì chứng khoán thường điều chỉnh.
-    # Trong giai đoạn cuối năm, nhiều yếu tố đang đưa tỷ giá lên mức cao, thị trường chứng khoán cũng có những ảnh hưởng nhất định.
-    # \n\nCùng phân tích về cơ hội và thách thức của tỷ giá tăng trong chương trình Khớp lệnh
-    # - Tài chính thịnh vượng hôm nay với chủ đề “Đô” vật.\n\n#KhoplenhVPBankS #Taichinhthinhvuong #Vimottuonglaithinhvuong"""
-    #
-    # video_live_chat = [
-    #     "MBS xin cảm ơn quý nhà đầu tư đã theo dõi và để lại các câu hỏi cho các chuyên gia ",
-    #     "Cho em hỏi mã HAG",
-    #     "Mọi người cùng vào tương tác nhé. Welcome",
-    #     "Thị trường xanh rồi",
-    #     "Có ai có câu hỏi dành cho chuyên gia không ạ?",
-    # ]
-    # video_title = "KHỚP LỆNH 28/10/2024: ĐÔ VẬT"
+    
     video_info = get_video_details_with_chat(video_url, API_KEY)
     video_description = video_info['description']
     video_title = video_info['video_title']
