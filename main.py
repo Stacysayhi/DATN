@@ -15,7 +15,7 @@ import streamlit as st
 import google.generativeai as genai
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
 import os
-# from dotenv import load_dotenv
+from dotenv import load_dotenv
 import re
 from googleapiclient.discovery import build
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
@@ -31,8 +31,8 @@ import io
 
 nltk.download('vader_lexicon')
 
-# Load environment variables
-# load_dotenv()
+#Load environment variables
+load_dotenv()
 
 # Configure Google API key
 genai.configure(api_key=os.getenv("AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"))
