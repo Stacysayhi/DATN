@@ -22,16 +22,14 @@ from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 nltk.download('vader_lexicon')
 
-# Load environment variables
-load_dotenv()
+# 🔥 Thay YOUR_YOUTUBE_API_KEY và YOUR_GENAI_API_KEY bằng API key của bạn
+YOUTUBE_API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"
+GENAI_API_KEY = "AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"
 
-genai.configure(api_key=os.getenv("GENAI_API_KEY"))
-youtube_api_key = os.getenv("YOUTUBE_API_KEY")
+genai.configure(api_key=GENAI_API_KEY)
 
-if not youtube_api_key:
-    raise ValueError("YouTube API key is missing. Check your environment variables.")
+youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
 
-youtube = build('youtube', 'v3', developerKey=youtube_api_key)
 
 prompt = """
 You are a YouTube video summarizer. Summarize the transcript in 300 words or less with key points.
