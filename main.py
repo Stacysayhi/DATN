@@ -10,7 +10,6 @@ import underthesea
 import google.generativeai as genai
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
 import os
-from dotenv import load_dotenv
 import isodate
 from datetime import datetime
 import time
