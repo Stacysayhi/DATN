@@ -11,18 +11,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 from youtube_transcript_api import YouTubeTranscriptApi
 import pandas as pd
-from dotenv import load_dotenv
-from Bard import ChatBard
-
-load_dotenv()
+import google.generativeai as genai  # Import the Gemini library
 
 # Your API Key - should be stored securely, not hardcoded
-API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual API key
-BARD_API_KEY = os.getenv("AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I")
+API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual YouTube Data API key
+GOOGLE_API_KEY = "AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"  # Replace with your Gemini API key
 
-# Cấu hình logging
+
+# Configure logging
 logging.basicConfig(filename='app.log', level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Configure Gemini API
+genai.configure(api_key=GOOGLE_API_KEY)
 
 
 @st.cache_resource
@@ -136,7 +137,7 @@ def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
                     "video_title": info_dict['title'],
                     "description": description,
                     "live_chat": [],
-                    "error": f"Error parsing live chat JSON: {str(e)}"
+                    "error": f"Error parsing live chat JSON: {subtitle_file}"
                 }
 
     except Exception as e:
@@ -174,6 +175,7 @@ def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
         "live_chat": live_chat_messages
     }
 
+
 def get_desc_chat(video_url, API_KEY):
     st.write(f"Analyzing video: {video_url}")
     video_info = get_video_details_with_chat(video_url, API_KEY)
@@ -191,6 +193,7 @@ def get_desc_chat(video_url, API_KEY):
 
     return clean_description, clean_live_chat, video_info['video_title'], video_info['live_chat']
 
+
 def get_top_comments(live_chat, top_n=3):
     comment_sentiments = []
 
@@ -207,6 +210,7 @@ def get_top_comments(live_chat, top_n=3):
 
     return [comment for comment, score in positive_comments], [comment for comment, score in negative_comments]
 
+
 def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     labels = ['😊 Positive', '😠 Negative', '😐 Neutral']
     sizes = [positive_count, negative_count, total_comments - (positive_count + negative_count)]
@@ -218,12 +222,14 @@ def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     ax.axis('equal')
     return fig
 
+
 def extract_video_id(url):
     pattern = re.compile(r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})")
     match = pattern.search(url)
     if match:
         return match.group(1)
     return None
+
 
 def get_sub(video_id):
     try:
@@ -242,20 +248,23 @@ def get_sub(video_id):
         logging.error(f"Error getting subtitles: {e}")
         return None
 
-def summarize_transcript(transcript, BARD_API_KEY):
-    if not transcript:
-        return "No transcript available or error retrieving transcript."
-    
-    # Initialize ChatBard
-    bard = ChatBard(token=BARD_API_KEY)
-    
-    # Prompt for summarization
-    prompt = f"Summarize the following Vietnamese transcript in a concise and informative way: {transcript}"
-    
-    # Get the summary
-    summary = bard.ask(prompt)
-    
-    return summary
+# Define the prompt for the Gemini model
+prompt = """
+You are a Youtube video summarizer. You will be taking the transcript text
+and summarizing the entire video and providing the important summary in points
+within 300 words. Please provide the summary of the text given here:  
+"""
+
+# Define the function to get the Gemini response
+def get_gemini_response(transcript_text):
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")  # Specify the model
+        response = model.generate_content(transcript_text + prompt)
+        return response.text
+    except Exception as e:
+        logging.error(f"Error generating Gemini response: {e}")
+        return None
+
 
 # Setup Streamlit app
 st.set_page_config(page_title="🎥 YouTube Video Sentiment and Summarization")
@@ -306,7 +315,7 @@ if st.button("🔍 Analyze Video"):
                             'negative_comments_list': negative_comments
                         },
                         "description": clean_description,
-                        "video_id": video_id # Store video ID
+                        "video_id": video_id  # Store video ID
                     }
                     st.session_state.responses.append(response)
                 except Exception as e:
@@ -362,7 +371,7 @@ for idx, response in enumerate(st.session_state.responses):
                 if video_id:
                     transcript = get_sub(video_id)
                     if transcript:
-                        summary = summarize_transcript(transcript, BARD_API_KEY)
+                        summary = get_gemini_response(transcript)  # Call Gemini
                         if summary:
                             response['transcript_summary'] = summary
                             st.session_state.responses[idx] = response
