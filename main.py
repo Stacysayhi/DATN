@@ -17,7 +17,6 @@ import google.generativeai as genai  # Import the Gemini library
 API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual YouTube Data API key
 GOOGLE_API_KEY = "AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"  # Replace with your Gemini API key
 
-
 # Configure logging
 logging.basicConfig(filename='app.log', level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -250,9 +249,9 @@ def get_sub(video_id):
 
 # Define the prompt for the Gemini model
 prompt = """
-Bạn là người tóm tắt video trên Youtube. Bạn sẽ lấy văn bản ghi chép
-và tóm tắt toàn bộ video và cung cấp bản tóm tắt quan trọng theo các điểm
-trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản được đưa ra ở đây:  
+You are a Youtube video summarizer. You will be taking the transcript text
+and summarizing the entire video and providing the important summary in points
+within 300 words. Please provide the summary of the text given here:  
 """
 
 # Define the function to get the Gemini response
@@ -357,11 +356,11 @@ for idx, response in enumerate(st.session_state.responses):
         if show_comments:
             st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
             for comment in comments['positive_comments_list']:
-                st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px;'>{comment}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
             st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
             for comment in comments['negative_comments_list']:
-                st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px;'>{comment}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
     # Button to generate summary
     if 'transcript_summary' not in response:
@@ -385,4 +384,4 @@ for idx, response in enumerate(st.session_state.responses):
     # Display generated summary
     if 'transcript_summary' in response:
         st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
-        st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
