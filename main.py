@@ -6,18 +6,23 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import yt_dlp
 from googleapiclient.discovery import build
-# import underthesea  # Commented out as it might not be used
 import logging
-import matplotlib.pyplot as plt  # Import matplotlib
-# from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer # Assuming this is still needed
-import numpy as np  # Import numpy
+import matplotlib.pyplot as plt
+import numpy as np
+from youtube_transcript_api import YouTubeTranscriptApi
+import pandas as pd
+from dotenv import load_dotenv
+from Bard import ChatBard
 
-# Cấu hình logging (ví dụ, ghi vào file)
-logging.basicConfig(filename='app.log', level=logging.ERROR,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+load_dotenv()
 
 # Your API Key - should be stored securely, not hardcoded
 API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual API key
+BARD_API_KEY = os.getenv("AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I")
+
+# Cấu hình logging
+logging.basicConfig(filename='app.log', level=logging.ERROR,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 @st.cache_resource
@@ -169,7 +174,6 @@ def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
         "live_chat": live_chat_messages
     }
 
-
 def get_desc_chat(video_url, API_KEY):
     st.write(f"Analyzing video: {video_url}")
     video_info = get_video_details_with_chat(video_url, API_KEY)
@@ -203,7 +207,6 @@ def get_top_comments(live_chat, top_n=3):
 
     return [comment for comment, score in positive_comments], [comment for comment, score in negative_comments]
 
-
 def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     labels = ['😊 Positive', '😠 Negative', '😐 Neutral']
     sizes = [positive_count, negative_count, total_comments - (positive_count + negative_count)]
@@ -222,6 +225,37 @@ def extract_video_id(url):
         return match.group(1)
     return None
 
+def get_sub(video_id):
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["vi"])
+        data = []
+        for segment in transcript:
+            text = segment['text']
+            start = segment['start']
+            duration = segment['duration']
+            data.append([video_id, start, start + duration, text])
+
+        df = pd.DataFrame(data, columns=['video_id', 'start_time', 'end_time', 'text'])
+        concatenated_text = ' '.join(df['text'].astype(str))
+        return concatenated_text
+    except Exception as e:
+        logging.error(f"Error getting subtitles: {e}")
+        return None
+
+def summarize_transcript(transcript, BARD_API_KEY):
+    if not transcript:
+        return "No transcript available or error retrieving transcript."
+    
+    # Initialize ChatBard
+    bard = ChatBard(token=BARD_API_KEY)
+    
+    # Prompt for summarization
+    prompt = f"Summarize the following Vietnamese transcript in a concise and informative way: {transcript}"
+    
+    # Get the summary
+    summary = bard.ask(prompt)
+    
+    return summary
 
 # Setup Streamlit app
 st.set_page_config(page_title="🎥 YouTube Video Sentiment and Summarization")
@@ -271,7 +305,8 @@ if st.button("🔍 Analyze Video"):
                             'positive_comments_list': positive_comments,
                             'negative_comments_list': negative_comments
                         },
-                        "description": clean_description
+                        "description": clean_description,
+                        "video_id": video_id # Store video ID
                     }
                     st.session_state.responses.append(response)
                 except Exception as e:
@@ -318,3 +353,27 @@ for idx, response in enumerate(st.session_state.responses):
             st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
             for comment in comments['negative_comments_list']:
                 st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px;'>{comment}</div>", unsafe_allow_html=True)
+
+    # Button to generate summary
+    if 'transcript_summary' not in response:
+        if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
+            with st.spinner("Generating summary..."):
+                video_id = response["video_id"]  # Get video ID from the response
+                if video_id:
+                    transcript = get_sub(video_id)
+                    if transcript:
+                        summary = summarize_transcript(transcript, BARD_API_KEY)
+                        if summary:
+                            response['transcript_summary'] = summary
+                            st.session_state.responses[idx] = response
+                        else:
+                            st.error("Failed to generate summary.")
+                    else:
+                        st.error("Failed to retrieve transcript.")
+                else:
+                    st.error("Video ID not found.")
+
+    # Display generated summary
+    if 'transcript_summary' in response:
+        st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
