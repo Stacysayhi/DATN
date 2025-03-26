@@ -24,6 +24,7 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 # Configure Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
 
+
 @st.cache_resource
 def load_model():
     model_id = "wonrax/phobert-base-vietnamese-sentiment"
@@ -139,7 +140,7 @@ def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
                 }
 
     except Exception as e:
-        logging.error(f"An error occurred while downloading live chat: {str(e)}")
+        logging.error(f"Error occurred while downloading live chat: {str(e)}")
         return {
             "video_title": "",
             "description": description,
@@ -250,7 +251,7 @@ def get_sub(video_id):
 prompt = """
 Bạn là người tóm tắt video trên Youtube. Bạn sẽ lấy văn bản ghi chép
 và tóm tắt toàn bộ video và cung cấp bản tóm tắt quan trọng theo các điểm
-trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản được đưa ra ở đây:  
+trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản được đưa ra ở đây:
 """
 
 # Define the function to get the Gemini response
@@ -277,7 +278,7 @@ youtube_link = st.text_input("🔗 Enter YouTube Video Link Below:", key="youtub
 
 # Clear the display when a new URL is entered
 if youtube_link and 'last_youtube_link' in st.session_state and youtube_link != st.session_state.last_youtube_link:
-    st.empty() # Clear all elements on the page
+    st.empty()  # Clear all elements on the page
 
 # Store the current YouTube link
 st.session_state.last_youtube_link = youtube_link
@@ -294,9 +295,18 @@ if st.button("🔍 Analyze Video"):
                 try:
                     clean_description, clean_live_chat, video_title, live_chat_messages = get_desc_chat(youtube_link, API_KEY)
 
-                    positive_count = sum(1 for comment in clean_live_chat if analyze_sentiment(comment)[0] == "Positive")
-                    negative_count = sum(1 for comment in clean_live_chat if analyze_sentiment(comment)[0] == "Negative")
-                    total_comments = len(clean_live_chat)
+                    # Analyze sentiment for each live chat message
+                    sentiment_data = []
+                    for chat in clean_live_chat:
+                        sentiment, _ = analyze_sentiment(chat)
+                        sentiment_data.append(sentiment)
+
+                    # Create a DataFrame for the live chat and sentiment
+                    df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
+
+                    positive_count = sum(1 for s in sentiment_data if s == "Positive")
+                    negative_count = sum(1 for s in sentiment_data if s == "Negative")
+                    total_comments = len(sentiment_data)
 
                     # Get top 3 positive and negative comments
                     positive_comments, negative_comments = get_top_comments(live_chat_messages)
@@ -320,7 +330,8 @@ if st.button("🔍 Analyze Video"):
                             'negative_comments_list': negative_comments
                         },
                         "description": clean_description,
-                        "video_id": video_id  # Store video ID
+                        "video_id": video_id,  # Store video ID
+                        "chat_sentiment_df": df  # Store the DataFrame
                     }
                     st.session_state.responses.append(response)
                 except Exception as e:
@@ -334,6 +345,7 @@ with st.container():
     for idx, response in enumerate(st.session_state.responses):
         video_details = response.get('video_details')
         comments = response.get('comments')
+        chat_sentiment_df = response.get('chat_sentiment_df')  # Retrieve the DataFrame
 
         # Display video details
         if video_details:
@@ -345,6 +357,11 @@ with st.container():
 
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
+
+            # Display the DataFrame
+            if chat_sentiment_df is not None:
+                st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
+                st.dataframe(chat_sentiment_df)  # Use st.dataframe to display
 
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
@@ -375,19 +392,16 @@ with st.container():
             if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
                 with st.spinner("Generating summary..."):
                     video_id = response["video_id"]  # Get video ID from the response
-                    if video_id:
-                        transcript = get_sub(video_id)
-                        if transcript:
-                            summary = get_gemini_response(transcript)  # Call Gemini
-                            if summary:
-                                response['transcript_summary'] = summary
-                                st.session_state.responses[idx] = response
-                            else:
-                                st.error("Failed to generate summary.")
+                    transcript = get_sub(video_id)
+                    if transcript:
+                        summary = get_gemini_response(transcript)  # Call Gemini
+                        if summary:
+                            response['transcript_summary'] = summary
+                            st.session_state.responses[idx] = response
                         else:
-                            st.error("Failed to retrieve transcript.")
+                            st.error("Failed to generate summary.")
                     else:
-                        st.error("Video ID not found.")
+                        st.error("Failed to retrieve transcript.")
 
         # Display generated summary
         if 'transcript_summary' in response:
