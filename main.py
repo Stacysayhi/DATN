@@ -250,9 +250,9 @@ def get_sub(video_id):
 
 # Define the prompt for the Gemini model
 prompt = """
-You are a Youtube video summarizer. You will be taking the transcript text
-and summarizing the entire video and providing the important summary in points
-within 300 words. Please provide the summary of the text given here:  
+Bạn là người tóm tắt video trên Youtube. Bạn sẽ lấy văn bản ghi chép
+và tóm tắt toàn bộ video và cung cấp bản tóm tắt quan trọng theo các điểm
+trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản được đưa ra ở đây:  
 """
 
 # Define the function to get the Gemini response
