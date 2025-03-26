@@ -17,7 +17,7 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Your API Key - should be stored securely, not hardcoded
-API_KEY = "YOUR_API_KEY"  # Replace with your actual API key
+API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual API key
 
 @st.cache_resource
 def load_model():
