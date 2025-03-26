@@ -24,7 +24,6 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 # Configure Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
 
-
 @st.cache_resource
 def load_model():
     model_id = "wonrax/phobert-base-vietnamese-sentiment"
@@ -251,7 +250,7 @@ def get_sub(video_id):
 prompt = """
 Bạn là người tóm tắt video trên Youtube. Bạn sẽ lấy văn bản ghi chép
 và tóm tắt toàn bộ video và cung cấp bản tóm tắt quan trọng theo các điểm
-trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản được đưa ra ở đây:
+trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản được đưa ra ở đây:  
 """
 
 # Define the function to get the Gemini response
@@ -275,6 +274,13 @@ if 'responses' not in st.session_state:
 
 # Unique key for text input
 youtube_link = st.text_input("🔗 Enter YouTube Video Link Below:", key="youtube_link_input")
+
+# Clear the display when a new URL is entered
+if youtube_link and 'last_youtube_link' in st.session_state and youtube_link != st.session_state.last_youtube_link:
+    st.empty() # Clear all elements on the page
+
+# Store the current YouTube link
+st.session_state.last_youtube_link = youtube_link
 
 # Add Submit URL button below the URL input field
 if st.button("🔍 Analyze Video"):
@@ -323,65 +329,67 @@ if st.button("🔍 Analyze Video"):
                 st.error("Invalid YouTube URL")
 
 # Display stored responses
-for idx, response in enumerate(st.session_state.responses):
-    video_details = response.get('video_details')
-    comments = response.get('comments')
+# Use a container to hold the display elements
+with st.container():
+    for idx, response in enumerate(st.session_state.responses):
+        video_details = response.get('video_details')
+        comments = response.get('comments')
 
-    # Display video details
-    if video_details:
-        if 'thumbnail_url' in response:
-            st.image(response['thumbnail_url'], use_column_width=True)
+        # Display video details
+        if video_details:
+            if 'thumbnail_url' in response:
+                st.image(response['thumbnail_url'], use_column_width=True)
 
-        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📹 Video Title:</h2>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center;'>{video_details['title']}</p>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📹 Video Title:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{video_details['title']}</p>", unsafe_allow_html=True)
 
-        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
 
-        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
 
-        # Plot and display pie chart for comments sentiment
-        fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
-        st.pyplot(fig)
+            # Plot and display pie chart for comments sentiment
+            fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
+            st.pyplot(fig)
 
-        st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
-        st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
-        st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
-        # Add a toggle button to show/hide the top comments
-        show_comments = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}")
-        if show_comments:
-            st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
-            for comment in comments['positive_comments_list']:
-                st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+            # Add a toggle button to show/hide the top comments
+            show_comments = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}")
+            if show_comments:
+                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
+                for comment in comments['positive_comments_list']:
+                    st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
-            st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
-            for comment in comments['negative_comments_list']:
-                st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
+                for comment in comments['negative_comments_list']:
+                    st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
-    # Button to generate summary
-    if 'transcript_summary' not in response:
-        if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
-            with st.spinner("Generating summary..."):
-                video_id = response["video_id"]  # Get video ID from the response
-                if video_id:
-                    transcript = get_sub(video_id)
-                    if transcript:
-                        summary = get_gemini_response(transcript)  # Call Gemini
-                        if summary:
-                            response['transcript_summary'] = summary
-                            st.session_state.responses[idx] = response
+        # Button to generate summary
+        if 'transcript_summary' not in response:
+            if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
+                with st.spinner("Generating summary..."):
+                    video_id = response["video_id"]  # Get video ID from the response
+                    if video_id:
+                        transcript = get_sub(video_id)
+                        if transcript:
+                            summary = get_gemini_response(transcript)  # Call Gemini
+                            if summary:
+                                response['transcript_summary'] = summary
+                                st.session_state.responses[idx] = response
+                            else:
+                                st.error("Failed to generate summary.")
                         else:
-                            st.error("Failed to generate summary.")
+                            st.error("Failed to retrieve transcript.")
                     else:
-                        st.error("Failed to retrieve transcript.")
-                else:
-                    st.error("Video ID not found.")
+                        st.error("Video ID not found.")
 
-    # Display generated summary
-    if 'transcript_summary' in response:
-        st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
-        st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
+        # Display generated summary
+        if 'transcript_summary' in response:
+            st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
