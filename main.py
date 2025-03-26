@@ -8,7 +8,7 @@ import yt_dlp
 from googleapiclient.discovery import build
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from underthesea import word_tokenize
-
+API_KEY = 'AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M'
 # Load Model
 @st.cache_resource
 def load_model():
