@@ -25,6 +25,8 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 genai.configure(api_key=GOOGLE_API_KEY)
 
 
+
+
 @st.cache_resource
 def load_model():
     model_id = "wonrax/phobert-base-vietnamese-sentiment"
@@ -348,7 +350,6 @@ with st.container():
         live_chat_messages = response.get('live_chat_messages')
         sentiment_data = response.get('sentiment_data')
 
-
         # Display video details
         if video_details:
             if 'thumbnail_url' in response:
@@ -359,6 +360,11 @@ with st.container():
 
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
+
+            # Phân tích tình cảm của mô tả video
+            description_sentiment, _ = analyze_sentiment(response['description'])  # Sử dụng response['description'] đã có sẵn
+            st.markdown(f"<h2 style='text-align: center; color: #800080;'>🎬 Mô tả video Sentiment:</h2>", unsafe_allow_html=True)  # Màu tím
+            st.markdown(f"<p style='text-align: center;'>{description_sentiment}</p>", unsafe_allow_html=True)
 
             # Create a DataFrame for the live chat and sentiment
             if live_chat_messages is not None and sentiment_data is not None:
