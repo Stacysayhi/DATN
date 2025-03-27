@@ -24,43 +24,22 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 # Configure Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
 
-MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
-MODEL_FILE = "sentiment_classifier (1).pth"
-
-
-
 
 @st.cache_resource
 def load_model():
-    model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
-    # tokenizer_path = MODEL_PATH  # Tokenizer usually saved in the same directory as the model
     model_id = "wonrax/phobert-base-vietnamese-sentiment"
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        # **Important:** Replace with the correct model class if needed
-        model = AutoModelForSequenceClassification.from_pretrained(model_id) #Or RobertaForSequenceClassification
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForSequenceClassification.from_pretrained(model_id)
 
-        # Load the state dictionary from the saved .pth file
-        # Try strict=False *only* if you understand the implications
-        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
+    # Move model to GPU if available
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
 
-        # Move model to GPU if available
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model.to(device)
-        print(f"Model loaded successfully from {model_path} and moved to {device}")
-        return tokenizer, model
-    except Exception as e:
-        st.error(f"Error loading model from {model_path}: {e}")
-        logging.error(f"Error loading model from {model_path}: {e}")
-        return None, None  # Return None values to indicate loading failure
+    return tokenizer, model
 
 
 def analyze_sentiment(text):
     tokenizer, model = load_model()
-    if tokenizer is None or model is None:
-        st.error("Model loading failed. Sentiment analysis is unavailable.")
-        return "Error", [0, 0, 0]  # Return a default sentiment and scores
-
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     tokenizer.padding_side = "left"
@@ -85,112 +64,112 @@ def preprocess_model_input_str(text, video_title=""):
     return clean_str
 
 
-def extract_video_id(url):
-    pattern = re.compile(r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})")
-    match = pattern.search(url)
-    if match:
-        return match.group(1)
-    return None
+def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
+    video_id_match = re.search(r"v=([a-zA-Z0-9_-]{11})", video_url)
+    if not video_id_match:
+        return {"error": "Invalid YouTube URL. Could not extract video ID."}
 
-# Helper function to fetch video description from YouTube API
-def fetch_video_description(video_id, api_key):
+    video_id = video_id_match.group(1)
+
+    # Fetch video description using YouTube API
+    youtube = build("youtube", "v3", developerKey=api_key)
+    description = ""
     try:
-        youtube = build("youtube", "v3", developerKey=api_key)
         response = youtube.videos().list(
             part="snippet",
             id=video_id
         ).execute()
 
         if not response["items"]:
-            return None  # Video not found
-        return response["items"][0]["snippet"]["description"]
+            return {"error": "Video not found. Check the URL or video ID."}
+
+        description = response["items"][0]["snippet"]["description"]
     except Exception as e:
-        logging.error(f"Error fetching video description: {e}")
-        return None
+        logging.error(f"Error fetching video details from YouTube API: {str(e)}")
+        return {"error": f"An error occurred while fetching video details: {str(e)}"}
 
-
-def download_live_chat(video_url, video_id):
+    # Download live chat subtitles using yt_dlp
     ydl_opts = {
         'writesubtitles': True,
         'skip_download': True,
         'subtitleslangs': ['live_chat'],
         'outtmpl': f'{video_id}',
     }
+    live_chat_messages = []
     subtitle_file = f"{video_id}.live_chat.json"
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(video_url, download=True)  # Download the live chat
-        return subtitle_file  # Return the filename to be parsed
-    except Exception as e:
-        logging.error(f"Error downloading live chat: {e}")
-        return None
 
-def parse_jsonl(file_path):
-    data = []
-    try:
+    def parse_jsonl(file_path):
+        data = []
         with open(file_path, 'r', encoding='utf-8') as file:
             for line in file:
                 data.append(json.loads(line))
         return data
-    except FileNotFoundError:
-        logging.error(f"Live chat file not found: {file_path}")
-        return None
-    except json.JSONDecodeError as e:
-        logging.error(f"Error parsing JSON in live chat file: {e}")
-        return None
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(video_url, download=True)
+            try:
+                data = parse_jsonl(subtitle_file)
+                for lc in data:
+                    try:
+                        lc_actions = lc.get('replayChatItemAction', {}).get('actions', [])
+                        for act in lc_actions:
+                            live_chat = act.get('addChatItemAction', {}).get('item', {}).get('liveChatTextMessageRenderer', None)
+                            if live_chat:
+                                runs = live_chat['message']['runs']
+                                for run in runs:
+                                    live_chat_messages.append(run['text'])
+                    except Exception as e:
+                        logging.warning(f"Error processing a live chat message: {str(e)}")
+                        continue
+            except FileNotFoundError:
+                logging.error(f"Live chat file not found: {subtitle_file}")
+                return {
+                    "video_title": info_dict['title'],
+                    "description": description,
+                    "live_chat": [],
+                    "error": f"Live chat file not found: {subtitle_file}"
+                }
+            except json.JSONDecodeError as e:
+                logging.error(f"Error parsing JSON in live chat file: {str(e)}")
+                return {
+                    "video_title": info_dict['title'],
+                    "description": description,
+                    "live_chat": [],
+                    "error": f"Error parsing live chat JSON: {subtitle_file}"
+                }
+
     except Exception as e:
-        logging.error(f"Error opening/reading file: {e}")
-        return None
-
-def extract_live_chat_messages(subtitle_file):
-    messages = []
-    if not subtitle_file or not os.path.exists(subtitle_file):
-        return messages  # Return empty list if no file or file doesn't exist
-
-    data = parse_jsonl(subtitle_file)  # Use the parsing function
-    if not data:
-        return messages  # Return empty list if parsing failed
-
-    for lc in data:
-        try:
-            lc_actions = lc.get('replayChatItemAction', {}).get('actions', [])
-            for act in lc_actions:
-                live_chat = act.get('addChatItemAction', {}).get('item', {}).get('liveChatTextMessageRenderer', None)
-                if live_chat:
-                    runs = live_chat['message']['runs']
-                    for run in runs:
-                        messages.append(run['text'])
-        except Exception as e:
-            logging.warning(f"Error processing a live chat message: {str(e)}")
-            continue
-    return messages
-
-
-def get_video_details_with_chat(video_url: str, api_key: str) -> dict:
-    video_id = extract_video_id(video_url)
-    if not video_id:
-        return {"error": "Invalid YouTube URL. Could not extract video ID."}
-
-    # 1. Fetch Video Description
-    description = fetch_video_description(video_id, api_key)
-    if description is None:
-        description = ""  # Handle cases where description retrieval fails
-
-    # 2. Download and Parse Live Chat
-    subtitle_file = download_live_chat(video_url, video_id)
-    live_chat_messages = extract_live_chat_messages(subtitle_file)
-
-    # 3. Clean up the temp file
-    if subtitle_file and os.path.exists(subtitle_file):
+        logging.error(f"Error occurred while downloading live chat: {str(e)}")
+        return {
+            "video_title": "",
+            "description": description,
+            "live_chat": [],
+            "error": f"An error occurred while downloading live chat: {str(e)}"
+        }
+    finally:
         try:
             os.remove(subtitle_file)
             logging.info(f"Deleted temporary file: {subtitle_file}")
+        except FileNotFoundError:
+            pass
         except Exception as e:
             logging.warning(f"Error deleting temporary file {subtitle_file}: {str(e)}")
 
-    # Return the data
+    try:
+        video_title = info_dict['title']
+    except Exception as e:
+        video_title = ""
+        logging.error(f"Error getting video title: {str(e)}")
+        return {
+            "video_title": video_title,
+            "description": description,
+            "live_chat": [],
+            "error": f"An error occurred while getting video title: {str(e)}"
+        }
+
     return {
-        "video_id": video_id,  # Include the video_id here
+        "video_title": video_title,
         "description": description,
         "live_chat": live_chat_messages
     }
@@ -204,28 +183,14 @@ def get_desc_chat(video_url, API_KEY):
         st.error(f"Error: {video_info['error']}")
         return "", [], [], {}
 
-    # Extract the video_id from video_info
-    video_id = video_info.get("video_id")
-
-    # Use the video_id to construct the URL to fetch the title
-    try:
-        youtube = build("youtube", "v3", developerKey=API_KEY)  # Ensure API_KEY is correctly passed
-        response = youtube.videos().list(
-            part="snippet",
-            id=video_id
-        ).execute()
-        video_title = response['items'][0]['snippet']['title']
-    except Exception as e:
-        logging.error(f"Error fetching video title: {e}")
-        video_title = "Video Title Unavailable"  # Fallback title
-
     video_description = video_info['description']
+    video_title = video_info['video_title']
     video_live_chat = video_info['live_chat']
 
     clean_description = preprocess_model_input_str(video_description, video_title)
     clean_live_chat = [preprocess_model_input_str(live_chat) for live_chat in video_live_chat]
 
-    return clean_description, clean_live_chat, video_title, video_info['live_chat']
+    return clean_description, clean_live_chat, video_info['video_title'], video_info['live_chat']
 
 
 def get_top_comments(live_chat, sentiment_labels, top_n=3):
@@ -257,6 +222,13 @@ def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     ax.axis('equal')
     return fig
 
+
+def extract_video_id(url):
+    pattern = re.compile(r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})")
+    match = pattern.search(url)
+    if match:
+        return match.group(1)
+    return None
 
 
 def get_sub(video_id):
@@ -292,69 +264,6 @@ def get_gemini_response(transcript_text):
     except Exception as e:
         logging.error(f"Error generating Gemini response: {e}")
         return None
-
-# Function to create and display the sentiment analysis visualization
-def display_sentiment_visualization(video_description, video_live_chat):
-    sentiment_labels = ["Negative", "Neutral", "Positive"]
-
-    # Analyze comments
-    comments_results = []
-    for comment in video_live_chat:
-        sentiment_label, scores = analyze_sentiment(comment)
-        comments_results.append(
-            {
-                "Text": comment,
-                "Sentiment": sentiment_label,
-                **{
-                    label: scores[i] * 100
-                    for i, label in enumerate(sentiment_labels)
-                },
-            }
-        )
-
-    # Analyze description
-    sentiment_label, description_scores = analyze_sentiment(video_description)
-    description_scores = description_scores * 100
-
-    # Create visualization
-    fig = make_subplots(
-        rows=2, cols=1, subplot_titles=("Description Analysis", "Comments Analysis")
-    )
-
-    # Description visualization
-    fig.add_trace(
-        go.Bar(
-            name="Description Sentiment", x=sentiment_labels, y=description_scores
-        ),
-        row=1,
-        col=1,
-    )
-
-    # Comments visualization
-    for i, label in enumerate(sentiment_labels):
-        scores = [result[label] for result in comments_results]
-        fig.add_trace(
-            go.Bar(name=label, x=list(range(1, len(scores) + 1)), y=scores),
-            row=2,
-            col=1,
-        )
-
-    fig.update_layout(height=700, barmode="group")
-    st.plotly_chart(fig)
-
-    # Display results
-    st.subheader("Description Analysis")
-    st.write(
-        f"**Overall Sentiment:** {sentiment_labels[np.argmax(description_scores)]}"
-    )
-    st.write(
-        f"**Scores:** {', '.join([f'{label}: {description_scores[i]:.2f}%' for i, label in enumerate(sentiment_labels)])}"
-    )
-    st.write(f"**Text:** {video_description}")
-
-    st.subheader("Comments Analysis")
-    comments_df = pd.DataFrame(comments_results)
-    st.dataframe(comments_df)
 
 
 # Setup Streamlit app
@@ -424,10 +333,6 @@ if st.button("🔍 Analyze Video"):
                         "live_chat_messages": live_chat_messages
                     }
                     st.session_state.responses.append(response)
-
-                    # ADDED:  Call the display_sentiment_visualization function
-                    display_sentiment_visualization(clean_description, clean_live_chat)
-
                 except Exception as e:
                     st.error(f"Error: {e}")
             else:
@@ -481,9 +386,9 @@ with st.container():
                 for comment in comments['positive_comments_list']:
                     st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
-            st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
-            for comment in comments['negative_comments_list']:
-                st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
+                for comment in comments['negative_comments_list']:
+                    st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
         # Button to generate summary
         if 'transcript_summary' not in response:
