@@ -24,7 +24,7 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 # Configure Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
 
-
+YOUTUBE_API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M" 
 @st.cache_resource
 def load_model():
     model_id = "wonrax/phobert-base-vietnamese-sentiment"
