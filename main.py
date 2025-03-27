@@ -24,7 +24,6 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 # Configure Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
 
-
 MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
 MODEL_FILE = "sentiment_classifier (1).pth"
 
@@ -157,9 +156,9 @@ def extract_live_chat_messages(subtitle_file):
                     runs = live_chat['message']['runs']
                     for run in runs:
                         messages.append(run['text'])
-    except Exception as e:
-        logging.warning(f"Error processing a live chat message: {str(e)}")
-        continue
+        except Exception as e:
+            logging.warning(f"Error processing a live chat message: {str(e)}")
+            continue
     return messages
 
 
@@ -382,7 +381,7 @@ if st.button("🔍 Analyze Video"):
             video_id = extract_video_id(youtube_link)
             if video_id:
                 try:
-                    clean_description, clean_live_chat, video_title, live_chat_messages = get_desc_chat(youtube_link, YOUTUBE_API_KEY)
+                    clean_description, clean_live_chat, video_title, live_chat_messages = get_desc_chat(youtube_link, API_KEY)
 
                     # Analyze sentiment for all live chat messages (batched)
                     sentiment_data = []
@@ -502,4 +501,3 @@ with st.container():
         if 'transcript_summary' in response:
             st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
-# Ensure you have this import
