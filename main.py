@@ -24,22 +24,40 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 # Configure Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
 
-YOUTUBE_API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M" 
+
+MODEL_PATH = "/content/drive/MyDrive/DATN_K214140938/sub_phobert2"  # Define your model path
+MODEL_FILE = "sentiment_classifier_best.pth"
+
+
 @st.cache_resource
 def load_model():
-    model_id = "wonrax/phobert-base-vietnamese-sentiment"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForSequenceClassification.from_pretrained(model_id)
+    model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
+    tokenizer_path = MODEL_PATH  # Tokenizer usually saved in the same directory as the model
 
-    # Move model to GPU if available
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        model = AutoModelForSequenceClassification.from_pretrained(tokenizer_path)
 
-    return tokenizer, model
+        # Load the state dictionary from the saved .pth file
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))  # Load to CPU first
+
+        # Move model to GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model.to(device)
+        print(f"Model loaded successfully from {model_path} and moved to {device}")
+        return tokenizer, model
+    except Exception as e:
+        st.error(f"Error loading model from {model_path}: {e}")
+        logging.error(f"Error loading model from {model_path}: {e}")
+        return None, None  # Return None values to indicate loading failure
 
 
 def analyze_sentiment(text):
     tokenizer, model = load_model()
+    if tokenizer is None or model is None:
+        st.error("Model loading failed. Sentiment analysis is unavailable.")
+        return "Error", [0, 0, 0]  # Return a default sentiment and scores
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model.to(device)
     tokenizer.padding_side = "left"
