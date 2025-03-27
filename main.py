@@ -28,7 +28,8 @@ MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weight
 MODEL_FILE = "sentiment_classifier (1).pth"
 
 
-@st.cache_resource
+
+
 @st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
