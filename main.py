@@ -25,18 +25,18 @@ logging.basicConfig(filename='app.log', level=logging.ERROR,
 genai.configure(api_key=GOOGLE_API_KEY)
 
 
-MODEL_PATH = "/content/drive/MyDrive/DATN_K214140938/sub_phobert2"  # Define your model path
-MODEL_FILE = "sentiment_classifier_best.pth"
+MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
+MODEL_FILE = "sentiment_classifier (1).pth"
 
 
 @st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
-    tokenizer_path = MODEL_PATH  # Tokenizer usually saved in the same directory as the model
-
+    # tokenizer_path = MODEL_PATH  # Tokenizer usually saved in the same directory as the model
+    model_id = "wonrax/phobert-base-vietnamese-sentiment"
     try:
-        tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        model = AutoModelForSequenceClassification.from_pretrained(tokenizer_path)
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForSequenceClassification.from_pretrained(model_id)
 
         # Load the state dictionary from the saved .pth file
         model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))  # Load to CPU first
@@ -157,9 +157,9 @@ def extract_live_chat_messages(subtitle_file):
                     runs = live_chat['message']['runs']
                     for run in runs:
                         messages.append(run['text'])
-        except Exception as e:
-            logging.warning(f"Error processing a live chat message: {str(e)}")
-            continue
+    except Exception as e:
+        logging.warning(f"Error processing a live chat message: {str(e)}")
+        continue
     return messages
 
 
@@ -478,9 +478,9 @@ with st.container():
                 for comment in comments['positive_comments_list']:
                     st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
-                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
-                for comment in comments['negative_comments_list']:
-                    st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+            st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
+            for comment in comments['negative_comments_list']:
+                st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
         # Button to generate summary
         if 'transcript_summary' not in response:
@@ -502,3 +502,4 @@ with st.container():
         if 'transcript_summary' in response:
             st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
+# Ensure you have this import
