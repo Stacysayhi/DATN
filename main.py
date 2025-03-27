@@ -27,6 +27,7 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 
 
+
 @st.cache_resource
 def load_model():
     model_id = "wonrax/phobert-base-vietnamese-sentiment"
@@ -261,7 +262,7 @@ trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản đ�
 def get_gemini_response(transcript_text):
     try:
         model = genai.GenerativeModel("gemini-1.5-flash")  # Specify the model
-        response = model.generate_content(transcript_text + prompt)
+        response = model.generate_content(prompt + transcript_text) #Fixed placement of prompt
         return response.text
     except Exception as e:
         logging.error(f"Error generating Gemini response: {e}")
