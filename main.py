@@ -29,16 +29,19 @@ MODEL_FILE = "sentiment_classifier (1).pth"
 
 
 @st.cache_resource
+@st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
     # tokenizer_path = MODEL_PATH  # Tokenizer usually saved in the same directory as the model
     model_id = "wonrax/phobert-base-vietnamese-sentiment"
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_id)
-        model = AutoModelForSequenceClassification.from_pretrained(model_id)
+        # **Important:** Replace with the correct model class if needed
+        model = AutoModelForSequenceClassification.from_pretrained(model_id) #Or RobertaForSequenceClassification
 
         # Load the state dictionary from the saved .pth file
-        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))  # Load to CPU first
+        # Try strict=False *only* if you understand the implications
+        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
 
         # Move model to GPU if available
         device = "cuda" if torch.cuda.is_available() else "cpu"
