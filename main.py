@@ -28,8 +28,6 @@ MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weight
 MODEL_FILE = "sentiment_classifier (1).pth"
 
 
-
-
 @st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
@@ -425,8 +423,6 @@ if st.button("🔍 Analyze Video"):
                     }
                     st.session_state.responses.append(response)
 
-                    # ADDED:  Call the display_sentiment_visualization function
-                    display_sentiment_visualization(clean_description, clean_live_chat)
 
                 except Exception as e:
                     st.error(f"Error: {e}")
@@ -434,17 +430,19 @@ if st.button("🔍 Analyze Video"):
                 st.error("Invalid YouTube URL")
 
 
-# Display stored responses
-# Use a container to hold the display elements
-with st.container():
-    for idx, response in enumerate(st.session_state.responses):
-        video_details = response.get('video_details')
-        comments = response.get('comments')
-        live_chat_messages = response.get('live_chat_messages')
-        sentiment_data = response.get('sentiment_data')
+#  -----> MULTIPAGE APP <-----
+if st.session_state.responses: # only show pages if there is a video to analyze
+    # Create the radio buttons for page selection
+    page = st.radio("Choose a Page:", ("Video Details", "Comments Analysis", "Summary"))
 
+    response = st.session_state.responses[-1]  # Access the last response object
+    video_details = response.get('video_details')
+    comments = response.get('comments')
+    live_chat_messages = response.get('live_chat_messages')
+    sentiment_data = response.get('sentiment_data')
 
-        # Display video details
+    if page == "Video Details":
+        # Page 1: Video Details
         if video_details:
             if 'thumbnail_url' in response:
                 st.image(response['thumbnail_url'], use_column_width=True)
@@ -455,12 +453,19 @@ with st.container():
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
 
-            # Create a DataFrame for the live chat and sentiment
-            if live_chat_messages is not None and sentiment_data is not None:
-                df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
-                st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
-                st.dataframe(df) # Use st.dataframe for a DataFrame
+            st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Sentiment Analysis of Description:</h2>", unsafe_allow_html=True)
+            # Display Sentiment Visualization of Description
+            display_sentiment_visualization(response['description'], [])  # Pass empty live_chat
 
+
+    elif page == "Comments Analysis":
+        # Page 2: Comments Analysis
+        if live_chat_messages is not None and sentiment_data is not None:
+            df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
+            st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
+            st.dataframe(df) # Use st.dataframe for a DataFrame
+
+        if comments:
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
 
@@ -474,20 +479,22 @@ with st.container():
             st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
-            # Add a toggle button to show/hide the top comments
-            show_comments = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}")
-            if show_comments:
-                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
-                for comment in comments['positive_comments_list']:
-                    st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+            # Show Top comments
+            st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
+            for comment in comments['positive_comments_list']:
+                st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
             st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
             for comment in comments['negative_comments_list']:
                 st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
+
+
+    elif page == "Summary":
+        # Page 3: Video Summary
         # Button to generate summary
         if 'transcript_summary' not in response:
-            if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
+            if st.button("📜 Generate Summary"):
                 with st.spinner("Generating summary..."):
                     video_id = response["video_id"]  # Get video ID from the response
                     transcript = get_sub(video_id)
@@ -495,7 +502,7 @@ with st.container():
                         summary = get_gemini_response(transcript)  # Call Gemini
                         if summary:
                             response['transcript_summary'] = summary
-                            st.session_state.responses[idx] = response
+                            st.session_state.responses[-1] = response  # Update last response
                         else:
                             st.error("Failed to generate summary.")
                     else:
@@ -504,4 +511,5 @@ with st.container():
         # Display generated summary
         if 'transcript_summary' in response:
             st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
