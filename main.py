@@ -28,6 +28,7 @@ MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weight
 MODEL_FILE = "sentiment_classifier (1).pth"
 
 
+
 @st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
@@ -528,5 +529,3 @@ if st.session_state.responses: # only show pages if there is a video to analyze
                 """,
                 unsafe_allow_html=True
             )
-            st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
-            st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
