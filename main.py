@@ -27,6 +27,7 @@ genai.configure(api_key=GOOGLE_API_KEY)
 MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
 MODEL_FILE = "sentiment_classifier (1).pth"
 
+
 @st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
@@ -429,7 +430,7 @@ if st.button("🔍 Analyze Video"):
                 st.error("Invalid YouTube URL")
 
 
-#  -----> HORIZONTAL LAYOUT <-----
+#  -----> HORIZONTAL LAYOUT WITH SCROLLABLE DESCRIPTION <-----
 if st.session_state.responses: # only show pages if there is a video to analyze
     response = st.session_state.responses[-1]  # Access the last response object
     video_details = response.get('video_details')
@@ -449,11 +450,19 @@ if st.session_state.responses: # only show pages if there is a video to analyze
             st.markdown(f"<p style='text-align: center;'>{video_details['title']}</p>", unsafe_allow_html=True)
 
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
-            st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
+            # Add a scrollable container for the description
+            st.markdown(
+                f"""
+                <div style="overflow: auto; height:200px; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                    <p style='text-align: left;'>{response['description']}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Sentiment Analysis of Description:</h2>", unsafe_allow_html=True)
             # Display Sentiment Visualization of Description
-            display_sentiment_visualization(response['description'], [])  # Pass empty live_chat
+            #display_sentiment_visualization(response['description'], [])  # Pass empty live_chat - REMOVED HERE
 
     with col2:
         st.header("Comments Analysis")
@@ -485,6 +494,10 @@ if st.session_state.responses: # only show pages if there is a video to analyze
             for comment in comments['negative_comments_list']:
                 st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
+         # Display Sentiment Visualization of Description MOVED HERE
+        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Sentiment Analysis of Description and Comments:</h2>", unsafe_allow_html=True)
+        display_sentiment_visualization(response['description'], live_chat_messages) # Pass empty live_chat
+
     with col3:
         st.header("Summary")
         # Button to generate summary
@@ -505,5 +518,15 @@ if st.session_state.responses: # only show pages if there is a video to analyze
 
         # Display generated summary
         if 'transcript_summary' in response:
+            st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
+             # Add a scrollable container for the description
+            st.markdown(
+                f"""
+                <div style="overflow: auto; height:200px; padding: 10px; border: 1px solid #ccc; border-radius: 5px;">
+                    <p style='text-align: left;'>{response['transcript_summary']}</p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
