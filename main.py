@@ -28,7 +28,6 @@ MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weight
 MODEL_FILE = "sentiment_classifier (1).pth"
 
 
-
 @st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
@@ -463,7 +462,7 @@ if st.session_state.responses: # only show pages if there is a video to analyze
 
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Sentiment Analysis of Description:</h2>", unsafe_allow_html=True)
             # Display Sentiment Visualization of Description
-            #display_sentiment_visualization(response['description'], [])  # Pass empty live_chat - REMOVED HERE
+            display_sentiment_visualization(response['description'], [])  # Pass empty live_chat # ADDED BACK IN TO FIX BUG
 
     with col2:
         st.header("Comments Analysis")
@@ -496,8 +495,8 @@ if st.session_state.responses: # only show pages if there is a video to analyze
                 st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
          # Display Sentiment Visualization of Description MOVED HERE
-        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Sentiment Analysis of Description and Comments:</h2>", unsafe_allow_html=True)
-        display_sentiment_visualization(response['description'], live_chat_messages) # Pass empty live_chat
+        #st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Sentiment Analysis of Description and Comments:</h2>", unsafe_allow_html=True)
+        #display_sentiment_visualization(response['description'], live_chat_messages) # Pass empty live_chat
 
     with col3:
         st.header("Summary")
