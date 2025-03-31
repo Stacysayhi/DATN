@@ -399,6 +399,9 @@ if st.button("🔍 Analyze Video"):
                     # Get top comments directly, passing in the sentiment labels we already calculated
                     positive_comments, negative_comments = get_top_comments(live_chat_messages, sentiment_data)
 
+                    # Analyze description sentiment
+                    description_sentiment, description_scores = analyze_sentiment(clean_description)
+
                     response = {
                         'thumbnail_url': f"http://img.youtube.com/vi/{video_id}/0.jpg",
                         'video_details': {
@@ -420,12 +423,13 @@ if st.button("🔍 Analyze Video"):
                         "description": clean_description,
                         "video_id": video_id,  # Store video ID
                         "sentiment_data": sentiment_data, # Store so table can be loaded.
-                        "live_chat_messages": live_chat_messages
+                        "live_chat_messages": live_chat_messages,
+                        "description_sentiment": description_sentiment, # Store sentiment of description
                     }
                     st.session_state.responses.append(response)
 
                     # ADDED:  Call the display_sentiment_visualization function
-                    display_sentiment_visualization(clean_description, clean_live_chat)
+                    # display_sentiment_visualization(clean_description, clean_live_chat)
 
                 except Exception as e:
                     st.error(f"Error: {e}")
@@ -433,69 +437,65 @@ if st.button("🔍 Analyze Video"):
                 st.error("Invalid YouTube URL")
 
 
-# Display stored responses
-# Use a container to hold the display elements
-with st.container():
-    for idx, response in enumerate(st.session_state.responses):
-        video_details = response.get('video_details')
-        comments = response.get('comments')
-        live_chat_messages = response.get('live_chat_messages')
-        sentiment_data = response.get('sentiment_data')
+# Display stored responses using tabs
+for idx, response in enumerate(st.session_state.responses):
+    video_details = response.get('video_details')
+    comments = response.get('comments')
+    live_chat_messages = response.get('live_chat_messages')
+    sentiment_data = response.get('sentiment_data')
 
-        st.header(f"Analysis of Video #{idx+1}")
+    st.header(f"Analysis of Video #{idx+1}")
 
-        # Arrange elements in columns for better layout
-        col1, col2 = st.columns(2)
+    # Create tabs
+    tab1, tab2, tab3 = st.tabs(["Video Info", "Live Chat Analysis", "Summary"])
 
-        with col1:
-            # Video and details (as you initially had them)
-            if video_details:
-                if 'thumbnail_url' in response:
-                    st.image(response['thumbnail_url'], use_column_width=True)
+    with tab1:
+        # Page 1: Video Information
+        st.markdown("<h2 style='text-align: center; color: #FF4500;'>📹 Video Title:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{video_details['title']}</p>", unsafe_allow_html=True)
 
-                st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📹 Video Title:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{video_details['title']}</p>", unsafe_allow_html=True)
+        st.image(response['thumbnail_url'], use_column_width=True)
 
-                st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
 
-        with col2:
-            # Live chat sentiments dataframe
-            if live_chat_messages is not None and sentiment_data is not None:
-                df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
-                st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
-                st.dataframe(df)  # Use st.dataframe for a DataFrame
+        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Description Sentiment:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{response['description_sentiment']}</p>", unsafe_allow_html=True)
 
-            # Video and details (as you initially had them)
-            if video_details:
+    with tab2:
+        # Page 2: Live Chat Analysis
+        st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
+        if live_chat_messages is not None and sentiment_data is not None:
+            df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
+            st.dataframe(df)  # Use st.dataframe for a DataFrame
 
-                st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
 
-                # Plot and display pie chart for comments sentiment
-                fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
-                st.pyplot(fig)
+        # Plot and display pie chart for comments sentiment
+        fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
+        st.pyplot(fig)
 
-                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
-                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
-        col3, col4 = st.columns(2)
-        with col3:
-            # Add a toggle button to show/hide the top comments
-            show_comments = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}")
-            if show_comments:
-                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
-                for comment in comments['positive_comments_list']:
-                    st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
-        with col4:
-                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
-                for comment in comments['negative_comments_list']:
-                    st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+        # Add a toggle button to show/hide the top comments
+        show_comments = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}")
+        if show_comments:
+            st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
+            for comment in comments['positive_comments_list']:
+                st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
+            st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
+            for comment in comments['negative_comments_list']:
+                st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+
+    with tab3:
+        # Page 3: Summary
         # Button to generate summary
         if 'transcript_summary' not in response:
             if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
@@ -513,6 +513,9 @@ with st.container():
                         st.error("Failed to retrieve transcript.")
 
         # Display generated summary
+        if 'transcript_summary' in response:
+            st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
         if 'transcript_summary' in response:
             st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
