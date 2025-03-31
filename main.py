@@ -271,7 +271,7 @@ def get_sub(video_id):
         concatenated_text = ' '.join(df['text'].astype(str))
         return concatenated_text
     except Exception as e:
-        logging.error(f"Error getting subtitles: {e}")
+        logging.error(f"Error getting subtitles for video ID {video_id}: {e}")
         return None
 
 # Define the prompt for the Gemini model
@@ -481,9 +481,14 @@ for idx, response in enumerate(st.session_state.responses):
             st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
+            # Use st.session_state to maintain the state of the toggle
+            if f"show_comments_{idx}" not in st.session_state:
+                st.session_state[f"show_comments_{idx}"] = False
+
             # Add a toggle button to show/hide the top comments
-            show_comments = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}")
-            if show_comments:
+            st.session_state[f"show_comments_{idx}"] = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}", value=st.session_state[f"show_comments_{idx}"])
+
+            if st.session_state[f"show_comments_{idx}"]:
                 st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
                 for comment in comments['positive_comments_list']:
                     st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
@@ -500,17 +505,21 @@ for idx, response in enumerate(st.session_state.responses):
         if 'transcript_summary' not in response:
             if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
                 with st.spinner("Generating summary..."):
-                    video_id = response["video_id"]  # Get video ID from the response
-                    transcript = get_sub(video_id)
-                    if transcript:
-                        summary = get_gemini_response(transcript)  # Call Gemini
-                        if summary:
-                            response['transcript_summary'] = summary
-                            st.session_state.responses[idx] = response
+                    try:  # Add try-except block for more robust error handling
+                        video_id = response["video_id"]  # Get video ID from the response
+                        print(f"Attempting to retrieve transcript for video ID: {video_id}") # Debugging line
+                        transcript = get_sub(video_id)
+                        if transcript:
+                            summary = get_gemini_response(transcript)  # Call Gemini
+                            if summary:
+                                response['transcript_summary'] = summary
+                                st.session_state.responses[idx] = response
+                            else:
+                                st.error("Failed to generate summary from Gemini.")
                         else:
-                            st.error("Failed to generate summary.")
-                    else:
-                        st.error("Failed to retrieve transcript.")
+                            st.error("Failed to retrieve transcript.")
+                    except Exception as e:
+                        st.error(f"An error occurred during summary generation: {e}")
 
         # Display generated summary
         if 'transcript_summary' in response:
