@@ -27,7 +27,6 @@ genai.configure(api_key=GOOGLE_API_KEY)
 MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
 MODEL_FILE = "sentiment_classifier (1).pth"
 
-
 @st.cache_resource
 def load_model():
     model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
@@ -430,19 +429,18 @@ if st.button("🔍 Analyze Video"):
                 st.error("Invalid YouTube URL")
 
 
-#  -----> MULTIPAGE APP <-----
+#  -----> HORIZONTAL LAYOUT <-----
 if st.session_state.responses: # only show pages if there is a video to analyze
-    # Create the radio buttons for page selection
-    page = st.radio("Choose a Page:", ("Video Details", "Comments Analysis", "Summary"))
-
     response = st.session_state.responses[-1]  # Access the last response object
     video_details = response.get('video_details')
     comments = response.get('comments')
     live_chat_messages = response.get('live_chat_messages')
     sentiment_data = response.get('sentiment_data')
 
-    if page == "Video Details":
-        # Page 1: Video Details
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.header("Video Details")
         if video_details:
             if 'thumbnail_url' in response:
                 st.image(response['thumbnail_url'], use_column_width=True)
@@ -457,9 +455,8 @@ if st.session_state.responses: # only show pages if there is a video to analyze
             # Display Sentiment Visualization of Description
             display_sentiment_visualization(response['description'], [])  # Pass empty live_chat
 
-
-    elif page == "Comments Analysis":
-        # Page 2: Comments Analysis
+    with col2:
+        st.header("Comments Analysis")
         if live_chat_messages is not None and sentiment_data is not None:
             df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
             st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
@@ -488,13 +485,11 @@ if st.session_state.responses: # only show pages if there is a video to analyze
             for comment in comments['negative_comments_list']:
                 st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
-
-
-    elif page == "Summary":
-        # Page 3: Video Summary
+    with col3:
+        st.header("Summary")
         # Button to generate summary
         if 'transcript_summary' not in response:
-            if st.button("📜 Generate Summary"):
+            if st.button("📜 Generate Summary", key="summary_button"):
                 with st.spinner("Generating summary..."):
                     video_id = response["video_id"]  # Get video ID from the response
                     transcript = get_sub(video_id)
@@ -511,5 +506,4 @@ if st.session_state.responses: # only show pages if there is a video to analyze
         # Display generated summary
         if 'transcript_summary' in response:
             st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
-            st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
