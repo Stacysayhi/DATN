@@ -601,7 +601,7 @@ else:
 
             # Display generated summary if it exists in the response
             if 'transcript_summary' in response:
-                st.markdown(f"<div style='background-color: #eaf4ff; padding: 15px; border-radius: 8px; border-left: 5px solid #0d6efd;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background-color: #150b00; padding: 15px; border-radius: 8px; border-left: 5px solid #0d6efd;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
             else:
                 st.info("Click 'Generate Summary' to create a summary of the video transcript using AI.")
 
