@@ -1,3 +1,33 @@
+# import re
+# import json
+# import os
+# import streamlit as st
+# import torch
+# from transformers import AutoTokenizer, AutoModelForSequenceClassification
+# import yt_dlp
+# from googleapiclient.discovery import build
+# import logging
+# import matplotlib.pyplot as plt
+# import numpy as np
+# from youtube_transcript_api import YouTubeTranscriptApi
+# import pandas as pd
+# import google.generativeai as genai  # Import the Gemini library
+
+# # Your API Key - should be stored securely, not hardcoded
+# API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual YouTube Data API key
+# GOOGLE_API_KEY = "AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"  # Replace with your Gemini API key
+
+# # Configure logging
+# logging.basicConfig(filename='app.log', level=logging.ERROR,
+#                     format='%(asctime)s - %(levelname)s - %(message)s')
+
+# # Configure Gemini API
+# genai.configure(api_key=GOOGLE_API_KEY)
+
+# MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
+# MODEL_FILE = "sentiment_classifier (1).pth"
+
+# MODEL_ID = "wonrax/phobert-base-vietnamese-sentiment"
 import re
 import json
 import os
@@ -12,720 +42,702 @@ import numpy as np
 from youtube_transcript_api import YouTubeTranscriptApi
 import pandas as pd
 import google.generativeai as genai  # Import the Gemini library
+# from plotly.subplots import make_subplots # No longer needed with Matplotlib
+# import plotly.graph_objects as go # No longer needed with Matplotlib
 
-# Your API Key - should be stored securely, not hardcoded
+# --- Configuration ---
+# Your API Key - should be stored securely, e.g., using Streamlit secrets or environment variables
 API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual YouTube Data API key
 GOOGLE_API_KEY = "AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"  # Replace with your Gemini API key
 
 # Configure logging
-logging.basicConfig(filename='app.log', level=logging.ERROR,
+logging.basicConfig(filename='app.log', level=logging.INFO, # Changed to INFO for better tracking
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Configure Gemini API
-genai.configure(api_key=GOOGLE_API_KEY)
+try:
+    genai.configure(api_key=GOOGLE_API_KEY)
+    logging.info("Gemini API configured successfully.")
+except Exception as e:
+    st.error(f"Failed to configure Gemini API: {e}")
+    logging.error(f"Failed to configure Gemini API: {e}")
+    # Optionally exit or disable Gemini features if configuration fails
+    # st.stop()
 
-MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
-MODEL_FILE = "sentiment_classifier (1).pth"
+MODEL_PATH = ""  # Set this to the directory if you have a folder for the weights, otherwise it would be ""
+MODEL_FILE = "sentiment_classifier (1).pth" # Make sure this path is correct relative to your script
 
-MODEL_ID = "wonrax/phobert-base-vietnamese-sentiment"
-@st.cache_resource
+# --- Model Loading ---
+@st.cache_resource # Cache the loaded model and tokenizer
 def load_model():
-    """Loads the sentiment analysis model and tokenizer."""
-    model_full_path = os.path.join(MODEL_PATH, MODEL_FILE)
+    model_path = os.path.join(MODEL_PATH, MODEL_FILE)
+    model_id = "wonrax/phobert-base-vietnamese-sentiment"
     try:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_ID)
-        model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID) # Or appropriate class
+        if not os.path.exists(model_path):
+             st.error(f"Model file not found at path: {os.path.abspath(model_path)}")
+             logging.error(f"Model file not found at path: {os.path.abspath(model_path)}")
+             return None, None
+
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForSequenceClassification.from_pretrained(model_id)
 
         # Load the state dictionary from the saved .pth file
-        # Use strict=False only if necessary and you understand the implications
-        # It might mean the saved weights don't perfectly match the model architecture.
-        model.load_state_dict(torch.load(model_full_path, map_location=torch.device('cpu')), strict=False)
+        map_location = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        state_dict = torch.load(model_path, map_location=map_location)
 
+        # Handle potential key mismatches (e.g., if saved with DataParallel)
+        # new_state_dict = {}
+        # for k, v in state_dict.items():
+        #     name = k[7:] if k.startswith('module.') else k # remove `module.` prefix
+        #     new_state_dict[name] = v
+        # model.load_state_dict(new_state_dict, strict=False)
+
+        # Try loading directly first, if it fails, try adjusting keys
+        try:
+             model.load_state_dict(state_dict, strict=True)
+        except RuntimeError as e:
+            logging.warning(f"Strict loading failed ({e}), trying non-strict or adjusting keys...")
+            try:
+                # Attempt non-strict loading
+                model.load_state_dict(state_dict, strict=False)
+                logging.warning("Loaded model state dict with strict=False. Check model architecture compatibility.")
+            except Exception as load_err:
+                 st.error(f"Error loading model state_dict even with adjustments: {load_err}")
+                 logging.error(f"Error loading model state_dict even with adjustments: {load_err}")
+                 return None, None
+
+
+        # Move model to GPU if available
         device = "cuda" if torch.cuda.is_available() else "cpu"
         model.to(device)
-        logging.info(f"Model loaded successfully from {model_full_path} and moved to {device}")
+        logging.info(f"Model loaded successfully from {model_path} and moved to {device}")
         return tokenizer, model
-    except FileNotFoundError:
-        st.error(f"Error: Model file not found at {model_full_path}. Please ensure the file exists.")
-        logging.error(f"Model file not found at {model_full_path}")
-        return None, None
     except Exception as e:
-        st.error(f"Error loading model from {model_full_path}: {e}")
-        logging.error(f"Error loading model from {model_full_path}: {e}")
+        st.error(f"Error loading model/tokenizer from {model_id} or file {model_path}: {e}")
+        logging.error(f"Error loading model/tokenizer from {model_id} or file {model_path}: {e}")
         return None, None
 
-
+# --- Sentiment Analysis ---
 def analyze_sentiment(text):
-    """Analyzes the sentiment of a given text using the loaded model."""
     tokenizer, model = load_model()
     if tokenizer is None or model is None:
         st.error("Model loading failed. Sentiment analysis is unavailable.")
-        return "Error", [0.0, 0.0, 0.0] # Return default error state
+        return "Error", np.array([0.0, 0.0, 0.0]) # Return numpy array for consistency
 
-    if not text or text.isspace():
-        return "Neutral", [0.0, 1.0, 0.0] # Treat empty/whitespace as Neutral
+    if not text or not isinstance(text, str) or text.strip() == "":
+        logging.warning("Received empty or invalid text for sentiment analysis.")
+        return "Neutral", np.array([0.0, 1.0, 0.0]) # Return neutral for empty input
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    # Ensure model is on the correct device (might be moved back to CPU by Streamlit caching)
     model.to(device)
-
+    # No need for tokenizer.padding_side = "left" with single inputs usually
     try:
-        # Tokenize and predict
-        tokenizer.padding_side = "left" # Usually set during training, ensure consistency
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=256, padding=True).to(device) # Reduced max_length slightly
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=256, padding=True).to(device) # Reduced max_length
         with torch.no_grad():
             outputs = model(**inputs)
-            # Ensure outputs are moved to CPU before converting to NumPy
             predictions = torch.nn.functional.softmax(outputs.logits, dim=1).cpu().numpy()[0]
 
-        sentiment_labels = ["Negative", "Neutral", "Positive"] # Make sure this order matches model output
-        predicted_class_index = np.argmax(predictions)
-        sentiment_label = sentiment_labels[predicted_class_index]
+        sentiment_labels = ["Negative", "Neutral", "Positive"]
+        predicted_class_idx = np.argmax(predictions)
+        sentiment_label = sentiment_labels[predicted_class_idx]
 
-        return sentiment_label, predictions.tolist() # Return scores as a list
+        return sentiment_label, predictions # predictions are scores [neg, neu, pos]
     except Exception as e:
         logging.error(f"Error during sentiment analysis for text '{text[:50]}...': {e}")
         st.warning(f"Could not analyze sentiment for a piece of text: {e}")
-        return "Error", [0.0, 0.0, 0.0]
+        return "Error", np.array([0.0, 0.0, 0.0])
 
-
+# --- Text Preprocessing ---
 def preprocess_model_input_str(text, video_title=""):
-    """Cleans text by removing URLs, excessive punctuation, newlines, etc."""
-    if not text:
+    if not text or not isinstance(text, str):
         return ""
-    # Keep Vietnamese characters, remove URLs, excessive symbols, newlines
-    text = re.sub(r'(?:https?|ftp):\/\/[\n\S]+', ' ', text) # More robust URL removal
-    text = re.sub(r'[-<>*&^%$#@";.,!?()\']{3,}', ' ', text) # Remove 3+ consecutive symbols
-    text = re.sub(r'\n+', ' ', text) # Replace newlines with space
-    text = re.sub(r'#\w+', ' ', text) # Remove hashtags
-    text = re.sub(r'\w*:', ' ', text) # Remove word: patterns
-    text = re.sub(r'\s{2,}', ' ', text).strip() # Remove extra spaces
+    # Slightly simplified regex
+    regex_pattern = r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+|www\.\S+|#\w+|\@\w+|[\n\r]+|[:;=]{2,}"
+    clean_str = re.sub(regex_pattern, " ", text)
+    clean_str = re.sub(r"\s{2,}", " ", clean_str) # Replace multiple spaces with one
     if video_title:
-        text = text.replace(video_title, "").strip() # Remove title if present
-    return text
+        clean_str = clean_str.replace(video_title, "") # Remove title if present
+    return clean_str.strip()
 
-
+# --- YouTube Data Fetching ---
 def extract_video_id(url):
-    """Extracts the YouTube video ID from various URL formats."""
-    # Regex covers youtube.com/watch, youtu.be/, youtube.com/embed/, youtube.com/v/
-    pattern = re.compile(r"(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})")
+    # Regex to handle various YouTube URL formats
+    pattern = re.compile(r'(?:v=|\/)([0-9A-Za-z_-]{11}).*')
     match = pattern.search(url)
     if match:
         return match.group(1)
-    logging.warning(f"Could not extract video ID from URL: {url}")
+    # Handle short URLs
+    pattern_short = re.compile(r'youtu\.be\/([0-9A-Za-z_-]{11})')
+    match_short = pattern_short.search(url)
+    if match_short:
+        return match_short.group(1)
     return None
 
 def fetch_video_details(video_id, api_key):
-    """Fetches video title and description using YouTube Data API."""
+    """Fetches title and description using YouTube Data API."""
     try:
         youtube = build("youtube", "v3", developerKey=api_key)
-        response = youtube.videos().list(
-            part="snippet",
+        request = youtube.videos().list(
+            part="snippet", # Only need snippet for title and description
             id=video_id
-        ).execute()
+        )
+        response = request.execute()
 
-        if not response.get("items"):
-            logging.error(f"No video found with ID: {video_id}")
-            return None, None # Video not found
+        if not response["items"]:
+            logging.error(f"Video not found with ID: {video_id}")
+            return None, "Video Title Unavailable", "Video Description Unavailable"
+
         snippet = response["items"][0]["snippet"]
-        return snippet.get("title", "Title Not Found"), snippet.get("description", "")
+        title = snippet.get("title", "Video Title Unavailable")
+        description = snippet.get("description", "") # Default to empty string if missing
+        return video_id, title, description
     except Exception as e:
         logging.error(f"Error fetching video details for {video_id}: {e}")
-        st.error(f"Could not fetch video details using YouTube API: {e}")
-        return None, None
+        st.error(f"Error fetching video details: {e}")
+        return video_id, "Video Title Unavailable", "Video Description Unavailable"
 
 
 def download_live_chat(video_url, video_id):
-    """Downloads the live chat replay as a JSON file using yt-dlp."""
-    ydl_opts = {
-        'writesubtitles': True,
-        'subtitleslangs': ['live_chat'], # Request live chat specifically
-        'skip_download': True,           # Don't download the video
-        'outtmpl': f'{video_id}',        # Base filename for output
-        'quiet': True,                   # Suppress yt-dlp console output
-        'noprogress': True,
-        'noplaylist': True,              # Don't process as playlist
-        'socket_timeout': 30,            # Set timeout
-        # 'verbose': True,                 # Uncomment for debugging yt-dlp issues
-        'no_warnings': True,             # Suppress some yt-dlp warnings
-        'ignoreerrors': True,            # Try to continue on errors
-        'format': 'best',                # Needed sometimes even with skip_download
-        'forcejson': True,               # Ensure JSON format for chat
-    }
+    """Downloads live chat replay if available."""
     subtitle_file = f"{video_id}.live_chat.json"
-
-    # Clean up old file if it exists
+    # Delete existing file if it exists to ensure fresh download
     if os.path.exists(subtitle_file):
         try:
             os.remove(subtitle_file)
         except OSError as e:
-            logging.warning(f"Could not remove pre-existing chat file {subtitle_file}: {e}")
+            logging.warning(f"Could not delete existing chat file {subtitle_file}: {e}")
+
+    ydl_opts = {
+        'writesubtitles': True,
+        'subtitleslangs': ['live_chat'], # Explicitly request live chat
+        'skip_download': True, # Don't download the video
+        'outtmpl': f'{video_id}', # Base name for files
+        'quiet': True,
+        'ignoreerrors': True, # Continue even if chat download fails
+        'logtostderr': False, # Don't print yt-dlp logs to stderr/console
+    }
 
     try:
-        logging.info(f"Attempting to download live chat for {video_id}")
+        logging.info(f"Attempting to download live chat for {video_id} from {video_url}")
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.extract_info(video_url, download=True)
+            result = ydl.extract_info(video_url, download=False) # Get info first
+            # Check if live chat is available before attempting download
+            if result and result.get('is_live') and not result.get('was_live'):
+                 logging.warning(f"Video {video_id} is currently live, live chat replay may not be available yet.")
+                 # return None # Don't try downloading if it's live and not finished
+
+            # Now attempt download
+            ydl.download([video_url])
+
 
         if os.path.exists(subtitle_file):
-            logging.info(f"Live chat downloaded successfully: {subtitle_file}")
+            logging.info(f"Live chat downloaded successfully to {subtitle_file}")
             return subtitle_file
         else:
-            logging.warning(f"yt-dlp finished but live chat file {subtitle_file} not found. Live chat might be unavailable.")
-            return None
+            # Check common reasons for failure
+            if result and not result.get('subtitles'):
+                 logging.warning(f"No subtitles (including live chat) found for video {video_id}.")
+            else:
+                 logging.warning(f"Live chat file {subtitle_file} not found after download attempt for {video_id}. Live chat might be disabled or unavailable.")
+            return None # Return None if download didn't produce the file
     except yt_dlp.utils.DownloadError as e:
-        # Specifically catch download errors (like no live chat available)
-        logging.warning(f"yt-dlp DownloadError for {video_id}: {e}. Likely no live chat available.")
+        # Specifically catch download errors which often indicate chat unavailability
+        if "live chat replay is not available" in str(e).lower():
+            logging.warning(f"Live chat replay not available for video {video_id}.")
+        else:
+            logging.error(f"yt-dlp DownloadError for {video_id}: {e}")
         return None
     except Exception as e:
-        logging.error(f"Unexpected error downloading live chat for {video_id}: {e}")
+        logging.error(f"Generic error downloading live chat for {video_id}: {e}")
         return None
 
-
 def parse_jsonl(file_path):
-    """Parses a JSON Lines file."""
+    """Parses a JSONL file, returning a list of dictionaries."""
     data = []
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             for line in file:
                 try:
                     data.append(json.loads(line))
-                except json.JSONDecodeError as e:
-                    logging.warning(f"Skipping invalid JSON line in {file_path}: {e} - Line: {line[:100]}")
-                    continue
+                except json.JSONDecodeError as json_err:
+                    logging.warning(f"Skipping invalid JSON line in {file_path}: {line.strip()} - Error: {json_err}")
+                    continue # Skip malformed lines
         return data
     except FileNotFoundError:
         logging.error(f"Live chat file not found during parsing: {file_path}")
         return None
     except Exception as e:
-        logging.error(f"Error opening/reading live chat file {file_path}: {e}")
+        logging.error(f"Error opening/reading file {file_path}: {e}")
         return None
 
-
 def extract_live_chat_messages(subtitle_file):
-    """Extracts message texts from the parsed live chat JSON data."""
+    """Extracts message texts from the parsed live chat JSONL data."""
     messages = []
-    if not subtitle_file:
-        logging.info("No subtitle file provided for chat extraction.")
-        return messages
+    if not subtitle_file or not os.path.exists(subtitle_file):
+        logging.warning(f"Subtitle file missing or not provided: {subtitle_file}")
+        return messages # Return empty list if no file
 
     data = parse_jsonl(subtitle_file)
-    if not data:
-        logging.warning(f"Parsing failed or returned no data for {subtitle_file}.")
-        return messages
+    if data is None: # Check if parsing failed
+        return messages # Return empty list
 
-    message_count = 0
     for entry in data:
         try:
-            # Structure can vary slightly, check common paths
-            actions = entry.get('replayChatItemAction', {}).get('actions', [])
+            # Navigate the nested structure common in YouTube chat replays
+            replay_action = entry.get('replayChatItemAction', {})
+            actions = replay_action.get('actions', [])
             for action in actions:
-                 item = action.get('addChatItemAction', {}).get('item', {})
-                 message_renderer = item.get('liveChatTextMessageRenderer') or item.get('liveChatPaidMessageRenderer') # Handle paid messages too
+                add_chat_item = action.get('addChatItemAction', {})
+                item = add_chat_item.get('item', {})
+                msg_renderer = item.get('liveChatTextMessageRenderer') or item.get('liveChatPaidMessageRenderer') # Handle regular and paid messages
 
-                 if message_renderer and 'message' in message_renderer:
-                    message_parts = message_renderer['message'].get('runs', [])
-                    full_message = ''.join(part.get('text', '') for part in message_parts if 'text' in part).strip()
-                    if full_message:
-                        messages.append(full_message)
-                        message_count += 1
+                if msg_renderer:
+                    message_content = msg_renderer.get('message')
+                    if message_content and 'runs' in message_content:
+                        full_message = "".join(run.get('text', '') for run in message_content['runs'] if 'text' in run)
+                        if full_message.strip(): # Ensure message isn't just whitespace
+                             messages.append(full_message.strip())
+                    elif 'simpleText' in message_content: # Sometimes it's simpler
+                         simple_text = message_content.get('simpleText', '').strip()
+                         if simple_text:
+                              messages.append(simple_text)
+
         except Exception as e:
-            logging.warning(f"Error processing a live chat entry: {e} - Entry: {str(entry)[:200]}")
-            continue
-
-    logging.info(f"Extracted {message_count} messages from {subtitle_file}")
+            logging.warning(f"Error processing a live chat entry: {entry} - Error: {str(e)}")
+            continue # Skip to the next entry if one causes an error
     return messages
 
-
-def get_desc_chat(video_url, api_key):
-    """Fetches description and live chat, returning cleaned versions and raw chat."""
-    st.write(f"Analyzing video: {video_url}") # Keep user informed
+# --- Data Aggregation ---
+def get_video_data(video_url: str, api_key: str) -> dict:
+    """Fetches video details and live chat, returning a structured dictionary."""
     video_id = extract_video_id(video_url)
     if not video_id:
-        st.error("Invalid YouTube URL. Could not extract video ID.")
-        return None, [], "Invalid URL", [] # Return consistent types
+        logging.error(f"Invalid YouTube URL: {video_url}")
+        return {"error": "Invalid YouTube URL. Could not extract video ID."}
 
-    # 1. Fetch Video Title and Description
-    video_title, video_description = fetch_video_details(video_id, api_key)
-    if video_title is None: # Check if fetching failed
-         st.error("Failed to retrieve video details from YouTube API.")
-         return None, [], "Title Unavailable", []
+    logging.info(f"Processing video ID: {video_id}")
+
+    # 1. Fetch Video Title & Description
+    video_id, title, description = fetch_video_details(video_id, api_key)
+    # if title == "Video Title Unavailable": # Check if fetch failed
+    #     return {"error": f"Could not fetch details for video ID: {video_id}"}
 
     # 2. Download and Parse Live Chat
     subtitle_file = download_live_chat(video_url, video_id)
-    raw_live_chat_messages = extract_live_chat_messages(subtitle_file) # Pass the filename
-
-    # 3. Clean up the temp chat file
-    if subtitle_file and os.path.exists(subtitle_file):
+    live_chat_messages = [] # Default to empty list
+    if subtitle_file:
+        live_chat_messages = extract_live_chat_messages(subtitle_file)
+        # 3. Clean up the temp file *after* processing
         try:
             os.remove(subtitle_file)
             logging.info(f"Deleted temporary chat file: {subtitle_file}")
         except Exception as e:
-            logging.warning(f"Could not delete temporary file {subtitle_file}: {e}")
-
-    # 4. Preprocess Text
-    clean_description = preprocess_model_input_str(video_description or "", video_title)
-    # Preprocess only non-empty messages
-    clean_live_chat = [preprocess_model_input_str(msg) for msg in raw_live_chat_messages if msg]
-
-    logging.info(f"Retrieved: Title='{video_title}', Desc Length={len(clean_description)}, Raw Chat Count={len(raw_live_chat_messages)}, Clean Chat Count={len(clean_live_chat)}")
-    return clean_description, clean_live_chat, video_title, raw_live_chat_messages
+            logging.warning(f"Error deleting temporary file {subtitle_file}: {str(e)}")
+    else:
+         logging.warning(f"No subtitle file generated or found for {video_id}. Proceeding without live chat.")
 
 
-def get_top_comments(live_chat, sentiment_labels, top_n=3):
-    """Selects the top N positive and negative comments based on pre-calculated sentiment."""
+    # 4. Preprocess text
+    clean_description = preprocess_model_input_str(description, title)
+    # Clean live chat messages *only if* they exist
+    clean_live_chat = [preprocess_model_input_str(msg) for msg in live_chat_messages] if live_chat_messages else []
+
+
+    # Return the structured data
+    return {
+        "video_id": video_id,
+        "title": title,
+        "description_raw": description,
+        "description_clean": clean_description,
+        "live_chat_raw": live_chat_messages,
+        "live_chat_clean": clean_live_chat,
+        "thumbnail_url": f"https://img.youtube.com/vi/{video_id}/0.jpg" if video_id else None,
+        "error": None # Indicate success
+    }
+
+
+# --- Analysis & Visualization ---
+
+def analyze_all_sentiments(description_clean, live_chat_clean):
+    """Analyzes sentiment for description and all live chat messages."""
+    # Analyze description
+    desc_sentiment_label, desc_sentiment_scores = analyze_sentiment(description_clean)
+
+    # Analyze live chat messages
+    chat_sentiments = [] # List of tuples: (label, scores_array)
+    chat_labels = [] # List of labels only
+    if live_chat_clean: # Only analyze if chat messages exist
+        # Using st.progress for visual feedback on chat analysis
+        progress_bar = st.progress(0, text="Analyzing live chat sentiment...")
+        total_chats = len(live_chat_clean)
+        for i, chat in enumerate(live_chat_clean):
+            label, scores = analyze_sentiment(chat)
+            chat_sentiments.append((label, scores))
+            chat_labels.append(label)
+            # Update progress bar
+            progress = (i + 1) / total_chats
+            progress_text = f"Analyzing live chat sentiment... ({i+1}/{total_chats})"
+            # Check if progress bar exists before updating (in case of errors)
+            if progress_bar:
+                 try:
+                      progress_bar.progress(progress, text=progress_text)
+                 except Exception as e:
+                      logging.warning(f"Error updating progress bar: {e}")
+                      progress_bar = None # Stop trying to update if it fails
+
+        if progress_bar:
+            progress_bar.empty() # Remove progress bar when done
+    else:
+        logging.info("No clean live chat messages to analyze.")
+
+
+    # Calculate counts for pie chart
+    positive_count = sum(1 for label in chat_labels if label == "Positive")
+    negative_count = sum(1 for label in chat_labels if label == "Negative")
+    neutral_count = sum(1 for label in chat_labels if label == "Neutral")
+    error_count = sum(1 for label in chat_labels if label == "Error")
+    total_analyzed = len(chat_labels)
+
+    if error_count > 0:
+        st.warning(f"Could not analyze sentiment for {error_count} chat messages.")
+
+    return {
+        "description_sentiment": desc_sentiment_label,
+        "description_scores": desc_sentiment_scores,
+        "chat_sentiment_labels": chat_labels, # List of 'Positive', 'Negative', 'Neutral', 'Error'
+        "chat_sentiments_full": chat_sentiments, # List of ('Label', [neg, neu, pos] scores)
+        "positive_count": positive_count,
+        "negative_count": negative_count,
+        "neutral_count": neutral_count,
+        "total_analyzed_chats": total_analyzed,
+    }
+
+def get_top_comments(live_chat_raw, chat_sentiment_labels, top_n=3):
+    """Selects top N positive/negative comments based on pre-calculated labels."""
     positive_comments = []
     negative_comments = []
 
-    if len(live_chat) != len(sentiment_labels):
-        logging.error("Mismatch between number of comments and sentiment labels in get_top_comments.")
-        return [], [] # Return empty lists on mismatch
+    # Ensure lists are of the same length
+    if len(live_chat_raw) != len(chat_sentiment_labels):
+        logging.error("Mismatch between raw chat messages and sentiment labels count.")
+        # Fallback: return empty lists or handle error appropriately
+        return [], []
 
-    for i, comment in enumerate(live_chat):
-        sentiment = sentiment_labels[i]
+    for i, comment in enumerate(live_chat_raw):
+        sentiment = chat_sentiment_labels[i]
         if sentiment == "Positive":
             positive_comments.append(comment)
         elif sentiment == "Negative":
             negative_comments.append(comment)
 
-    # No need to sort by score here as scores aren't directly available, just labels
-    # Return the first N found
+    # Return the top N, no sorting needed here as order might be relevant (time)
+    # If specific score-based sorting is needed, 'chat_sentiments_full' would be required
     return positive_comments[:top_n], negative_comments[:top_n]
 
 
-def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
+def plot_sentiment_pie_chart(positive_count, negative_count, neutral_count, total_comments):
     """Generates a Matplotlib pie chart for sentiment distribution."""
-    if total_comments <= 0:
-        # Handle case with no comments
+    if total_comments == 0:
+        # Return an empty figure or a message if no comments
         fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, 'No comments to analyze', horizontalalignment='center', verticalalignment='center')
+        ax.text(0.5, 0.5, 'No chat comments to analyze', horizontalalignment='center', verticalalignment='center')
         ax.axis('off') # Hide axes
         return fig
-
-    neutral_count = total_comments - positive_count - negative_count
-    # Ensure neutral is not negative due to potential rounding or errors elsewhere
-    neutral_count = max(0, neutral_count)
 
     labels = []
     sizes = []
     colors = []
-    explode = [] # To slightly separate slices
+    explode = []
 
+    # Only include slices with data
     if positive_count > 0:
         labels.append(f'😊 Positive ({positive_count})')
         sizes.append(positive_count)
-        colors.append('#32CD32') # Green
-        explode.append(0.05)
+        colors.append('#DFF0D8') # Light green
+        explode.append(0.1 if positive_count >= max(negative_count, neutral_count) else 0) # Explode largest slice slightly
     if negative_count > 0:
         labels.append(f'😠 Negative ({negative_count})')
         sizes.append(negative_count)
-        colors.append('#FF6347') # Red
-        explode.append(0.05)
+        colors.append('#F2DEDE') # Light red
+        explode.append(0.1 if negative_count > max(positive_count, neutral_count) else 0)
     if neutral_count > 0:
         labels.append(f'😐 Neutral ({neutral_count})')
         sizes.append(neutral_count)
-        colors.append('#D3D3D3') # Grey
-        explode.append(0)
+        colors.append('#EAEAEA') # Light gray
+        explode.append(0.1 if neutral_count >= max(positive_count, negative_count) else 0)
 
-    if not sizes: # If all counts were zero (should be caught by total_comments check, but safe)
-         fig, ax = plt.subplots()
-         ax.text(0.5, 0.5, 'No sentiment data', horizontalalignment='center', verticalalignment='center')
-         ax.axis('off')
-         return fig
+    # Ensure explode has the correct length
+    while len(explode) < len(sizes):
+         explode.append(0) # Should not happen with the logic above, but safe fallback
+    if sum(explode) > 0.1: # Avoid exploding multiple slices if counts are equal
+         max_idx = sizes.index(max(sizes))
+         explode = [0.1 if i == max_idx else 0 for i in range(len(sizes))]
+
 
     fig, ax = plt.subplots(figsize=(6, 4)) # Adjust figure size if needed
-    ax.pie(sizes,
-           labels=labels,
-           colors=colors,
-           autopct='%1.1f%%',
-           startangle=90,
-           pctdistance=0.85, # Position percentage inside slices
-           explode=explode) # Apply explode effect
-
-    # Draw circle for doughnut chart effect (optional)
-    # centre_circle = plt.Circle((0,0),0.70,fc='white')
-    # fig.gca().add_artist(centre_circle)
-
+    ax.pie(sizes, explode=tuple(explode), labels=labels, colors=colors, autopct='%1.1f%%',
+           startangle=140, pctdistance=0.85) # Show percentage inside slice
     ax.axis('equal') # Equal aspect ratio ensures that pie is drawn as a circle.
     plt.title("Live Chat Sentiment Distribution", pad=20)
-    # plt.tight_layout() # Adjust layout
     return fig
 
 
+# --- Summarization ---
 def get_sub(video_id):
-    """Retrieves and concatenates the transcript for a given video ID."""
+    """Fetches video transcript using youtube_transcript_api."""
     try:
-        # Try fetching Vietnamese first, fall back to English if needed
-        try:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            target_langs = ['vi', 'en'] # Prioritize Vietnamese
-            transcript = None
-            for lang in target_langs:
-                try:
-                    transcript = transcript_list.find_generated_transcript([lang])
-                    logging.info(f"Found '{lang}' transcript for {video_id}")
-                    break # Found one, stop searching
-                except Exception:
-                    continue # Try next language
+        # Try Vietnamese first, fallback to English
+        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+        target_langs = ['vi', 'en'] # Prioritize Vietnamese
+        transcript = None
+        for lang in target_langs:
+             try:
+                  transcript = transcript_list.find_generated_transcript([lang])
+                  logging.info(f"Found transcript in language: {lang} for {video_id}")
+                  break # Stop after finding the first available language in our list
+             except Exception:
+                  continue # Try next language
 
-            if not transcript:
-                 logging.warning(f"No 'vi' or 'en' transcript found for {video_id}. Attempting any available.")
-                 # If specific languages not found, try getting any transcript
-                 transcript = transcript_list.find_generated_transcript(transcript_list.languages)
-
-            transcript_data = transcript.fetch()
-
-        except Exception as find_err:
-             logging.error(f"Could not find any transcript for video ID {video_id}: {find_err}")
-             st.warning(f"Could not find any transcript for video ID {video_id}.")
-             return None
+        if not transcript:
+            logging.warning(f"No transcript found in {target_langs} for video ID {video_id}. Trying any available.")
+            # Fallback: try fetching any available transcript
+            try:
+                transcript = transcript_list.find_generated_transcript(transcript_list.languages)
+                logging.info(f"Found transcript in language: {transcript.language} for {video_id}")
+            except Exception as e:
+                 logging.error(f"Could not find any transcript for video ID {video_id}: {e}")
+                 st.warning(f"Could not retrieve transcript for this video ({e}).")
+                 return None
 
 
-        if not transcript_data:
-            logging.warning(f"Transcript fetched but is empty for video ID {video_id}")
-            st.warning(f"Transcript appears to be empty for video ID {video_id}.")
-            return None
-
-        # Concatenate text segments
-        concatenated_text = ' '.join([segment['text'] for segment in transcript_data if 'text' in segment])
-        logging.info(f"Successfully retrieved and concatenated transcript for {video_id}. Length: {len(concatenated_text)}")
+        full_transcript = transcript.fetch()
+        concatenated_text = ' '.join([segment['text'] for segment in full_transcript])
+        logging.info(f"Transcript retrieved successfully for {video_id} (length: {len(concatenated_text)} chars)")
         return concatenated_text
-
     except Exception as e:
-        logging.error(f"Error getting subtitles for video ID {video_id}: {e}")
-        st.error(f"An error occurred while fetching the transcript: {e}")
+        logging.error(f"Error getting transcript for video ID {video_id}: {e}")
+        st.error(f"Error retrieving transcript: {e}")
         return None
 
-
-# Define the prompt for the Gemini model (Vietnamese)
-prompt = """
-Bạn là một trợ lý tóm tắt video YouTube. Nhiệm vụ của bạn là đọc bản ghi đầy đủ của video được cung cấp
-và tạo ra một bản tóm tắt ngắn gọn, tập trung vào các điểm chính và nội dung quan trọng nhất.
-Bản tóm tắt nên được trình bày dưới dạng các gạch đầu dòng hoặc một đoạn văn mạch lạc, trong khoảng 150-300 từ.
-Vui lòng tóm tắt nội dung từ bản ghi sau đây:
+# Define the prompt for the Gemini model (Updated as per original)
+GEMINI_PROMPT = """
+Bạn là người tóm tắt video trên Youtube. Bạn sẽ lấy văn bản ghi chép
+và tóm tắt toàn bộ video và cung cấp bản tóm tắt quan trọng theo các điểm
+trong vòng 300 từ. Vui lòng cung cấp bản tóm tắt của văn bản được đưa ra ở đây:
 """
 
 def get_gemini_response(transcript_text):
-    """Generates a summary using the Gemini API."""
-    if not transcript_text or transcript_text.isspace():
-        logging.warning("Transcript text is empty, cannot generate summary.")
-        return "Error: Transcript was empty."
-
+    """Generates summary using Google Gemini API."""
+    if not transcript_text:
+        logging.error("Cannot generate summary from empty transcript.")
+        return None
+    if not GOOGLE_API_KEY or genai._config.api_key is None: # Check if Gemini configured
+         st.error("Gemini API key not configured. Cannot generate summary.")
+         logging.error("Gemini API key not configured.")
+         return None
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash") # Or other suitable model like gemini-pro
-        full_prompt = transcript_text + "\n\n" + prompt # Combine transcript and prompt
-        logging.info(f"Sending text length {len(full_prompt)} to Gemini for summarization.")
-        # Add safety settings if needed
-        # safety_settings = [
-        #     {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-        #     {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
-        # ]
-        # response = model.generate_content(full_prompt, safety_settings=safety_settings)
+        # Specify a model known for summarization, ensure it's available/correct
+        # Check available models if 'gemini-1.5-flash' causes issues
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        full_prompt = transcript_text + "\n\n" + GEMINI_PROMPT # Combine transcript and prompt
         response = model.generate_content(full_prompt)
-
-        # Check for safety blocks or empty response
-        if not response.parts:
-            logging.warning("Gemini response was blocked or empty.")
-            # Try to get candidate information if available
-            try:
-                 block_reason = response.prompt_feedback.block_reason
-                 logging.warning(f"Gemini content blocked. Reason: {block_reason}")
-                 return f"Error: Content generation blocked by safety filters (Reason: {block_reason})."
-            except Exception:
-                 return "Error: Content generation failed (empty response)."
-
-        logging.info("Successfully received summary from Gemini.")
-        return response.text
+        logging.info(f"Gemini summary generated successfully.")
+        return response.text # Extract the text part of the response
     except Exception as e:
         logging.error(f"Error generating Gemini response: {e}")
-        st.error(f"Failed to generate summary using Gemini: {e}")
-        return f"Error during summary generation: {e}"
+        st.error(f"Error generating summary via Gemini: {e}")
+        return None
 
-# --- Streamlit App UI and Logic ---
 
-# Setup Streamlit app
-st.set_page_config(page_title="🎥 YouTube Video Sentiment & Summary", layout="wide")
+# --- Streamlit App UI ---
+st.set_page_config(page_title="YT Analysis", layout="wide") # Use wide layout
 st.markdown("<h1 style='text-align: center; color: #FF5733;'>🎥 YouTube Video Sentiment & Summarization 🎯</h1>", unsafe_allow_html=True)
 
-# Initialize session state
-if 'responses' not in st.session_state:
-    st.session_state.responses = [] # Stores the analysis results for the current video
+# Initialize session state if keys don't exist
+if 'video_data' not in st.session_state:
+    st.session_state.video_data = None # Stores raw fetched data
+if 'analysis_results' not in st.session_state:
+    st.session_state.analysis_results = None # Stores sentiment results
+if 'summary' not in st.session_state:
+    st.session_state.summary = None # Stores generated summary
 if 'last_youtube_link' not in st.session_state:
-     st.session_state.last_youtube_link = ""
+    st.session_state.last_youtube_link = ""
+if 'show_top_comments' not in st.session_state:
+    st.session_state.show_top_comments = False # State for the checkbox
 
-# Input field
-youtube_link = st.text_input(
-    "🔗 Enter YouTube Video Link:",
-    key="youtube_link_input",
-    value=st.session_state.get("last_youtube_link", ""),
-    placeholder="e.g., https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-)
+# --- Input Form ---
+with st.form("youtube_url_form"):
+    youtube_link = st.text_input("🔗 Enter YouTube Video Link:", key="youtube_link_input", value=st.session_state.last_youtube_link)
+    submitted = st.form_submit_button("🔍 Analyze Video")
 
-# Placeholder for results - allows clearing/updating content below the input field
-results_placeholder = st.container()
+    if submitted:
+        # Clear previous results if new link is different or empty
+        if not youtube_link or youtube_link != st.session_state.last_youtube_link:
+            st.session_state.video_data = None
+            st.session_state.analysis_results = None
+            st.session_state.summary = None
+            st.session_state.show_top_comments = False # Reset checkbox state
+            st.session_state.last_youtube_link = youtube_link # Update last link
 
-# Analyze Button Logic
-if st.button("🔍 Analyze Video", key="analyze_button"):
-    submitted_link = youtube_link.strip()
+        if not youtube_link:
+            st.warning("Please enter a YouTube video link.")
+            st.stop() # Stop execution if link is empty
 
-    if not submitted_link:
-        st.session_state.responses = []
-        st.session_state.last_youtube_link = ""
-        results_placeholder.warning("Input cleared. Enter a YouTube URL.")
-    elif submitted_link != st.session_state.last_youtube_link:
-        # New link entered, clear previous results and analyze
-        st.session_state.responses = [] # Clear previous results
-        st.session_state.last_youtube_link = submitted_link # Store the new link
+        st.session_state.last_youtube_link = youtube_link # Store link even if analysis fails
 
-        with results_placeholder: # Show spinner within the results area
-            with st.spinner('🧠 Analyzing video... Fetching data, analyzing sentiment...'):
-                video_id = extract_video_id(submitted_link)
-                if video_id:
-                    try:
-                        # Ensure the correct API_KEY from config is used
-                        clean_description, clean_live_chat, video_title, live_chat_messages = get_desc_chat(submitted_link, API_KEY)
+        with st.spinner('🔄 Processing video... Please wait.'):
+            # 1. Fetch Video Data
+            with st.spinner('⬇️ Fetching video details and live chat...'):
+                 video_data = get_video_data(youtube_link, API_KEY)
+                 st.session_state.video_data = video_data # Store fetched data
 
-                        if video_title == "Invalid URL" or video_title == "Title Unavailable":
-                             # Error handled within get_desc_chat, stop processing
-                             st.error(f"Could not process video: {video_title}")
+            if video_data and video_data.get("error"):
+                st.error(video_data["error"])
+                st.session_state.video_data = None # Clear data on error
+                st.stop()
+            elif not video_data or not video_data.get("video_id"):
+                st.error("Failed to retrieve essential video data.")
+                st.session_state.video_data = None # Clear data on error
+                st.stop()
 
-                        else:
-                            # --- Sentiment Analysis ---
-                            # Analyze description
-                            desc_sentiment_label, _ = analyze_sentiment(clean_description)
-                            logging.info(f"Description Sentiment: {desc_sentiment_label}")
+            # 2. Perform Sentiment Analysis (only if data fetch succeeded)
+            with st.spinner('📊 Analyzing sentiments...'):
+                analysis_results = analyze_all_sentiments(
+                    video_data.get("description_clean", ""),
+                    video_data.get("live_chat_clean", [])
+                )
+                st.session_state.analysis_results = analysis_results # Store analysis results
 
-                            # Analyze live chat messages (only if chat exists)
-                            chat_sentiment_labels = []
-                            if clean_live_chat:
-                                for chat_text in clean_live_chat:
-                                    label, _ = analyze_sentiment(chat_text)
-                                    chat_sentiment_labels.append(label)
-                                logging.info(f"Analyzed {len(chat_sentiment_labels)} live chat messages.")
-                            else:
-                                logging.info("No clean live chat messages to analyze.")
+            # Clear summary from previous runs
+            st.session_state.summary = None
+            st.success("✅ Analysis complete! View results in the tabs below.")
+            # Rerun to update the display sections below the form
+            st.rerun()
 
 
-                            # --- Calculate Stats ---
-                            positive_count = sum(1 for s in chat_sentiment_labels if s == "Positive")
-                            negative_count = sum(1 for s in chat_sentiment_labels if s == "Negative")
-                            total_analyzed_comments = len(chat_sentiment_labels)
+# --- Display Results using Tabs (only if data exists) ---
+if st.session_state.video_data and st.session_state.analysis_results:
+    # Retrieve data from session state for easier access
+    video_data = st.session_state.video_data
+    analysis = st.session_state.analysis_results
 
-                            # --- Get Top Comments ---
-                            # Use raw messages for display, map sentiments using index
-                            top_positive, top_negative = get_top_comments(live_chat_messages, chat_sentiment_labels)
+    # Create tabs
+    tab1, tab2, tab3 = st.tabs(["📈 Video Info", "💬 Live Chat Analysis", "📝 Summary"])
 
-                            # --- Store Results ---
-                            response = {
-                                'thumbnail_url': f"https://img.youtube.com/vi/{video_id}/mqdefault.jpg", # Medium quality thumbnail
-                                'video_details': { 'title': video_title },
-                                'comments': {
-                                    'total_comments': total_analyzed_comments,
-                                    'positive_comments': positive_count,
-                                    'negative_comments': negative_count,
-                                    'positive_comments_list': top_positive,
-                                    'negative_comments_list': top_negative
-                                },
-                                "description": clean_description or "No description provided.",
-                                "video_id": video_id,
-                                "sentiment_data": chat_sentiment_labels, # Store labels for the table
-                                "live_chat_messages": live_chat_messages, # Store raw for table/top comments
-                                "description_sentiment": desc_sentiment_label,
-                                # Add 'transcript_summary': None # Initialize summary field
-                            }
-                            st.session_state.responses = [response] # Store the single, new response
-                            logging.info(f"Analysis complete for video ID: {video_id}")
+    # --- Tab 1: Video Info ---
+    with tab1:
+        st.markdown("### Video Details")
+        if video_data.get("thumbnail_url"):
+             st.image(video_data["thumbnail_url"], caption=video_data.get('title', 'Video Thumbnail'), use_column_width=True)
+        else:
+             st.warning("Could not load video thumbnail.")
 
-                    except Exception as e:
-                        st.error(f"❌ An unexpected error occurred during analysis: {e}")
-                        logging.exception("Analysis pipeline failed.") # Log full traceback
-                        st.session_state.responses = [] # Clear results on major error
-                else:
-                    st.error("❌ Invalid YouTube URL provided.")
-                    st.session_state.responses = [] # Clear results on invalid URL
-    # No 'else' needed: if button clicked with same URL, just redisplay existing results below
+        st.markdown(f"**Title:** {video_data.get('title', 'N/A')}")
 
-# --- Display Results ---
-with results_placeholder:
-    if not st.session_state.responses:
-        # Show only if the button hasn't been clicked yet or if cleared
-        if not st.session_state.get("analyze_button"):
-             st.info("✨ Enter a YouTube URL and click 'Analyze Video' to see the magic!")
-    else:
-        # Displaying the latest (and only) response
-        response = st.session_state.responses[0]
-        idx = 0 # Index is always 0 now
+        st.markdown("**Description:**")
+        # Use expander for potentially long descriptions
+        with st.expander("Click to view/hide description", expanded=False):
+             st.markdown(f"> {video_data.get('description_raw', 'No description available.')}") # Display raw description
 
-        video_details = response.get('video_details', {})
-        comments_data = response.get('comments', {}) # Renamed for clarity
-        live_chat_messages = response.get('live_chat_messages', [])
-        sentiment_data = response.get('sentiment_data', []) # Chat sentiment labels
+        st.markdown("**Description Sentiment:**")
+        desc_sentiment = analysis.get('description_sentiment', 'N/A')
+        st.markdown(f"**Sentiment:** `{desc_sentiment}`")
+        # Optional: Show scores if needed
+        # desc_scores = analysis.get('description_scores')
+        # if desc_scores is not None:
+        #     st.write(f"Scores (Neg, Neu, Pos): {[f'{s:.2f}' for s in desc_scores]}")
 
-        # Create tabs
-        tab1, tab2, tab3 = st.tabs(["📊 Video Info", "💬 Live Chat Analysis", "📝 Summary"])
 
-        # --- Tab 1: Video Info ---
-        with tab1:
-            col1, col2 = st.columns([1, 2]) # Image column, Text column
+    # --- Tab 2: Live Chat Analysis ---
+    with tab2:
+        st.markdown("### Live Chat Sentiment Analysis")
 
+        raw_chat = video_data.get("live_chat_raw", [])
+        chat_labels = analysis.get("chat_sentiment_labels", [])
+        total_analyzed = analysis.get("total_analyzed_chats", 0)
+
+        if not raw_chat:
+            st.info("ℹ️ No live chat messages were found or downloaded for this video.")
+        else:
+            # Combine chat and labels for DataFrame
+            if len(raw_chat) == len(chat_labels):
+                chat_df_data = {'Live Chat Message': raw_chat, 'Sentiment': chat_labels}
+                chat_df = pd.DataFrame(chat_df_data)
+
+                st.markdown("**Live Chat Messages and Sentiments:**")
+                # Use st.dataframe for better table display, limit height
+                st.dataframe(chat_df, height=300, use_container_width=True)
+            else:
+                st.warning("Mismatch between number of chat messages and analyzed sentiments. Cannot display table reliably.")
+                logging.error(f"Chat/Label count mismatch: {len(raw_chat)} messages, {len(chat_labels)} labels for {video_data.get('video_id')}")
+
+
+            st.markdown("**Sentiment Distribution:**")
+            # Plot and display pie chart
+            fig = plot_sentiment_pie_chart(
+                analysis.get('positive_count', 0),
+                analysis.get('negative_count', 0),
+                analysis.get('neutral_count', 0),
+                total_analyzed
+            )
+            st.pyplot(fig)
+
+            st.markdown("**Top Comments:**")
+            # Get top comments using pre-calculated labels
+            positive_comments, negative_comments = get_top_comments(
+                raw_chat,
+                chat_labels,
+                top_n=3
+            )
+
+            # Use columns for better layout
+            col1, col2 = st.columns(2)
             with col1:
-                if response.get('thumbnail_url'):
-                    st.image(response['thumbnail_url'], use_column_width='always', caption="Video Thumbnail")
+                st.markdown(f"<h4 style='color: #28a745;'>👍 Top Positive Comments ({len(positive_comments)}):</h4>", unsafe_allow_html=True)
+                if positive_comments:
+                    for comment in positive_comments:
+                        st.markdown(f"<div style='background-color: #DFF0D8; padding: 8px; border-radius: 5px; margin-bottom: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
                 else:
-                    st.warning("Thumbnail not available.")
+                    st.write("No positive comments found.")
 
             with col2:
-                st.markdown(f"#### 📹 Video Title:")
-                st.markdown(f"**{video_details.get('title', 'N/A')}**")
-
-                st.markdown("---")
-
-                st.markdown(f"#### 📝 Description:")
-                desc_text = response.get('description', 'No description provided.')
-                if len(desc_text) > 300: # Use expander for long descriptions
-                    with st.expander("View Full Description"):
-                        st.markdown(f"{desc_text}")
+                st.markdown(f"<h4 style='color: #dc3545;'>👎 Top Negative Comments ({len(negative_comments)}):</h4>", unsafe_allow_html=True)
+                if negative_comments:
+                    for comment in negative_comments:
+                        st.markdown(f"<div style='background-color: #F2DEDE; padding: 8px; border-radius: 5px; margin-bottom: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
                 else:
-                    st.markdown(f"{desc_text}")
+                    st.write("No negative comments found.")
 
+    # --- Tab 3: Summary ---
+    with tab3:
+        st.markdown("### Video Summary (Generated by AI)")
 
-                st.markdown("---")
+        video_id = video_data.get("video_id")
 
-                st.markdown(f"#### 📊 Description Sentiment:")
-                st.markdown(f"**{response.get('description_sentiment', 'N/A')}**")
-
-        # --- Tab 2: Live Chat Analysis ---
-        with tab2:
-            st.markdown("<h3 style='text-align: center; color: #FF4500;'>Live Chat Sentiment Analysis</h3>", unsafe_allow_html=True)
-
-            total_comments = comments_data.get('total_comments', 0)
-
-            if total_comments > 0:
-                # Layout for Pie Chart and Stats
-                col_chart, col_stats = st.columns([2, 1]) # Give chart more space
-
-                with col_chart:
-                    st.markdown("<h4 style='text-align: center;'>Sentiment Distribution</h4>", unsafe_allow_html=True)
-                    try:
-                        fig = plot_sentiment_pie_chart(
-                            comments_data.get('positive_comments', 0),
-                            comments_data.get('negative_comments', 0),
-                            total_comments
-                        )
-                        st.pyplot(fig, use_container_width=True)
-                    except Exception as plot_err:
-                         st.error(f"Could not generate pie chart: {plot_err}")
-                         logging.error(f"Pie chart generation error: {plot_err}")
-
-
-                with col_stats:
-                    st.markdown("<h4 style='text-align: center;'>Statistics</h4>", unsafe_allow_html=True)
-                    pos_comments = comments_data.get('positive_comments', 0)
-                    neg_comments = comments_data.get('negative_comments', 0)
-                    neu_comments = total_comments - pos_comments - neg_comments
-
-                    st.metric(label="Total Comments Analyzed", value=f"{total_comments}")
-                    st.metric(label="👍 Positive", value=f"{pos_comments} ({(pos_comments/total_comments)*100:.1f}%)" if total_comments else "0 (0.0%)")
-                    st.metric(label="👎 Negative", value=f"{neg_comments} ({(neg_comments/total_comments)*100:.1f}%)" if total_comments else "0 (0.0%)")
-                    st.metric(label="😐 Neutral", value=f"{neu_comments} ({(neu_comments/total_comments)*100:.1f}%)" if total_comments else "0 (0.0%)")
-
-
-                st.markdown("---") # Visual separator
-
-                # Live Chat Table and Top Comments Section
-                st.markdown("#### 📜 Live Chat Messages & Detected Sentiment")
-                if live_chat_messages and sentiment_data and len(live_chat_messages) == len(sentiment_data):
-                    try:
-                         # Create DataFrame using raw messages and calculated sentiments
-                        df = pd.DataFrame({
-                            'Live Chat Message': live_chat_messages,
-                            'Sentiment': sentiment_data
-                        })
-                        st.dataframe(df, use_container_width=True, height=300) # Set height for scrollable table
-                    except Exception as df_err:
-                         st.error(f"Could not display chat dataframe: {df_err}")
-                         logging.error(f"Chat dataframe error: {df_err}")
-
-                else:
-                    st.info("No live chat messages found or sentiment data mismatch.")
-
-
-                # Top Comments Expander
-                with st.expander("👀 View Top 3 Positive/Negative Comments"):
-                    col_pos, col_neg = st.columns(2)
-                    with col_pos:
-                        st.markdown(f"<h5 style='color: #32CD32;'>👍 Top Positive Comments:</h5>", unsafe_allow_html=True)
-                        pos_list = comments_data.get('positive_comments_list', [])
-                        if pos_list:
-                            for comment in pos_list:
-                                st.markdown(f"<div style='background-color: #E8F5E9; padding: 8px; border-radius: 5px; margin-bottom: 5px; color: black; font-size: 0.9em;'>{comment}</div>", unsafe_allow_html=True)
-                        else:
-                            st.write("No positive comments found.")
-
-                    with col_neg:
-                        st.markdown(f"<h5 style='color: #FF6347;'>👎 Top Negative Comments:</h5>", unsafe_allow_html=True)
-                        neg_list = comments_data.get('negative_comments_list', [])
-                        if neg_list:
-                            for comment in neg_list:
-                                st.markdown(f"<div style='background-color: #FFEBEE; padding: 8px; border-radius: 5px; margin-bottom: 5px; color: black; font-size: 0.9em;'>{comment}</div>", unsafe_allow_html=True)
-                        else:
-                            st.write("No negative comments found.")
-            else:
-                st.info("ℹ️ No live chat comments were found or analyzed for this video.")
-
-
-        # --- Tab 3: Summary ---
-        with tab3:
-            st.markdown("<h3 style='text-align: center; color: #1E90FF;'>📜 AI Generated Summary (from Transcript)</h3>", unsafe_allow_html=True)
-
-            video_id = response.get("video_id")
-            summary_key = f"summarize_{video_id}" # Unique key for the button
-
-            # Button to generate summary
-            if 'transcript_summary' not in response:
-                if st.button("✨ Generate Summary", key=summary_key):
-                    with st.spinner("🧘‍♀️ Generating summary... This might take a minute."):
-                        try:
-                            logging.info(f"Attempting to retrieve transcript for summary: {video_id}")
-                            transcript = get_sub(video_id)
-                            if transcript:
-                                summary = get_gemini_response(transcript)
-                                if summary and not summary.startswith("Error:"):
-                                    # Update the specific response in session state
-                                    st.session_state.responses[idx]['transcript_summary'] = summary
-                                    logging.info(f"Summary generated successfully for {video_id}.")
-                                    # Force rerun to display the summary immediately
-                                    st.rerun()
-                                elif summary: # Handle specific errors from Gemini
-                                     st.error(f"❌ {summary}") # Display the error message from Gemini
-                                     logging.error(f"Gemini summary generation failed for {video_id}: {summary}")
-                                else:
-                                    st.error("❌ Failed to generate summary from the AI model (received empty response).")
-                                    logging.error(f"Gemini summary generation failed for {video_id} (empty response).")
-                            else:
-                                st.warning("⚠️ Could not retrieve transcript. Summary cannot be generated.")
-                                logging.warning(f"Transcript retrieval failed for {video_id}, summary skipped.")
-                                # Optionally store a 'no transcript' message
-                                st.session_state.responses[idx]['transcript_summary'] = "Transcript not available."
-                                st.rerun()
-
-                        except Exception as e:
-                            st.error(f"❌ An error occurred during summary generation: {e}")
-                            logging.exception(f"Summary generation exception for {video_id}") # Log traceback
-
-            # Display generated summary (or status)
-            if 'transcript_summary' in response:
-                 summary_text = response['transcript_summary']
-                 if summary_text == "Transcript not available.":
-                      st.warning("⚠️ Transcript not available for this video, summary cannot be generated.")
-                 elif summary_text.startswith("Error:"):
-                      st.error(f"❌ {summary_text}") # Show error if generation failed previously
-                 else:
-                      st.markdown("#### Summary:")
-                      st.markdown(f"<div style='background-color: #E3F2FD; padding: 15px; border-radius: 8px; border: 1px solid #BBDEFB; color: black;'>{summary_text}</div>", unsafe_allow_html=True)
-            else:
-                 # If button hasn't been clicked yet
-                 st.info("📄 Click the 'Generate Summary' button above to create a summary from the video transcript (if available).")
-
-# Optional: Footer or additional info
-st.markdown("---")
-st.markdown("<p style='text-align: center; color: grey; font-size: 0.8em;'>Sentiment Analysis & Summarization Tool</p>", unsafe_allow_html=True)
+        # Display summary if already generated and stored
+        if st.session_state.summary:
+            st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{st.session_state.summary}</div>", unsafe_allow_html=True)
+            # Option to regenerate
+            if st.button("🔄 Regenerate Summary", key="regenerate_summary"):
+                 st.session_state.summary = None # Clear current summary
+                 st.rerun() # Rerun to trigger generation logic below
+        else:
+             # Button to generate summary (only shown if not generated yet)
+             if st.button("📜 Generate Summary", key="generate_summary"):
+                 with st.spinner("⏳ Generating summary... This may take a moment."):
+                     # 1. Get Transcript
+                     transcript = get_sub(video_id)
+                     if transcript:
+                         # 2. Get Gemini Response
+                         summary_text = get_gemini_response(transcript)
+                         if summary_text:
+                             st.session_state.summary = summary_text # Store the summary
+                             st.rerun() # Rerun to display the summary immediately
+                         else:
+                             st.error("❌ Failed to generate summary from the transcript.")
+                             # Keep summary as None
+                     else:
+                         st.error("❌ Failed to retrieve transcript. Cannot generate summary.")
+                         # Keep summary as None
+             else:
+                  st.info("ℹ️ Click the button above to generate an AI summary of the video transcript (if available).")
