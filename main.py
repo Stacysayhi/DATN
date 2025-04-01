@@ -559,10 +559,10 @@ else:
                                 st.caption("No positive comments found.")
 
                         with col_neg:
-                            st.markdown(f"<h5 style='color: #28a745;'>👎 Top Negative Comments:</h5>", unsafe_allow_html=True)
+                            st.markdown(f"<h5 style='color: #dc3545;'>👎 Top Negative Comments:</h5>", unsafe_allow_html=True)
                             if comments['negative_comments_list']:
                                 for comment in comments['negative_comments_list']:
-                                    st.markdown(f"<div style='background-color: #fdeded; padding: 8px; border-radius: 5px; margin-bottom: 5px; border-left: 3px solid #dc3545;'>{comment}</div>", unsafe_allow_html=True)
+                                    st.markdown(f"<div style='background-color: #121f12; padding: 8px; border-radius: 5px; margin-bottom: 5px; border-left: 3px solid #dc3545;'>{comment}</div>", unsafe_allow_html=True)
                             else:
                                  st.caption("No negative comments found.")
                 else:
@@ -601,13 +601,13 @@ else:
 
             # Display generated summary if it exists in the response
             if 'transcript_summary' in response:
-                st.markdown(f"<div style='background-color: #28a745; padding: 15px; border-radius: 8px; border-left: 5px solid #0d6efd;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background-color: #121f12; padding: 15px; border-radius: 8px; border-left: 5px solid #0d6efd;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
             else:
                 st.info("Click 'Generate Summary' to create a summary of the video transcript using AI.")
 
 # Optional: Add a footer
 st.markdown("---")
-st.caption("YouTube Analysis App | Sentiment powered by PhoBERT | Summary by Google Gemini")
+st.caption("YOUTUBE LIVECHAT SENTIMENT | TRAN THU HIEN | Summary by Google Gemini")
 # import re
 # import json
 # import os
