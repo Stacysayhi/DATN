@@ -38,9 +38,7 @@ import yt_dlp
 from googleapiclient.discovery import build
 import logging
 import matplotlib
-
 matplotlib.use('Agg')  # Add this line before importing pyplot
-
 import matplotlib.pyplot as plt
 import numpy as np
 from youtube_transcript_api import YouTubeTranscriptApi
@@ -285,11 +283,15 @@ def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     colors = ['#DFF0D8', '#F2DEDE', '#EAEAEA']
     explode = (0.1, 0, 0)
 
-    fig, ax = plt.subplots()
-    ax.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
-    ax.axis('equal')
-    return fig
-
+    try:  # Wrap the plotting code in a try-except block
+        fig, ax = plt.subplots()
+        ax.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
+        ax.axis('equal')
+        return fig
+    except Exception as e:
+        st.error(f"Error creating pie chart: {e}")
+        logging.error(f"Error creating pie chart: {e}")
+        return None  # Return None to indicate failure
 
 
 def get_sub(video_id):
@@ -514,7 +516,10 @@ for idx, response in enumerate(st.session_state.responses):
 
             # Plot and display pie chart for comments sentiment
             fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
-            st.pyplot(fig)
+            if fig:  # Only display the chart if it was successfully created
+                st.pyplot(fig)
+            else:
+                st.error("Failed to display pie chart.")
 
             st.write(f"**👍 Positive Comments:** {comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)")
             st.write(f"**👎 Negative Comments:** {comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)")
@@ -566,4 +571,3 @@ for idx, response in enumerate(st.session_state.responses):
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
         else:
             st.write("No summary generated yet. Click 'Generate Summary' to create one.") # Handle no summary
-
