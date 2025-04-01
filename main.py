@@ -21,8 +21,9 @@ import time
 # Your API Key - should be stored securely, not hardcoded
 # Consider using Streamlit secrets or environment variables
 # Example: API_KEY = st.secrets["YOUTUBE_API_KEY"]
-API_KEY = "YOUR_YOUTUBE_API_KEY"  # <---- REPLACE WITH YOUR YOUTUBE API KEY
-GOOGLE_API_KEY = "YOUR_GEMINI_API_KEY" # <---- REPLACE WITH YOUR GEMINI API KEY
+API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual YouTube Data API key
+GOOGLE_API_KEY = "AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"  # Replace with your Gemini API key
+
 
 # Configure logging
 logging.basicConfig(filename='app.log', level=logging.INFO, # Set to INFO for more details if needed
