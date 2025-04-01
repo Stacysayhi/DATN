@@ -551,7 +551,7 @@ else:
                     with st.expander("Show Top Positive & Negative Comments", expanded=False):
                         col_pos, col_neg = st.columns(2)
                         with col_pos:
-                            st.markdown(f"<h5 style='color: #28a745;'>👍 Top Positive Comments:</h5>", unsafe_allow_html=True)
+                            st.markdown(f"<h5 style='color: #180b00;'>👍 Top Positive Comments:</h5>", unsafe_allow_html=True)
                             if comments['positive_comments_list']:
                                 for comment in comments['positive_comments_list']:
                                     st.markdown(f"<div style='background-color: #e9f7ef; padding: 8px; border-radius: 5px; margin-bottom: 5px; border-left: 3px solid #28a745;'>{comment}</div>", unsafe_allow_html=True)
@@ -601,7 +601,7 @@ else:
 
             # Display generated summary if it exists in the response
             if 'transcript_summary' in response:
-                st.markdown(f"<div style='background-color: #150b00; padding: 15px; border-radius: 8px; border-left: 5px solid #0d6efd;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background-color: #180b00; padding: 15px; border-radius: 8px; border-left: 5px solid #0d6efd;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
             else:
                 st.info("Click 'Generate Summary' to create a summary of the video transcript using AI.")
 
