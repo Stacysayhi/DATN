@@ -252,7 +252,7 @@ def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     colors = ['#DFF0D8', '#F2DEDE', '#EAEAEA']
     explode = (0.1, 0, 0)
 
-    fig, ax = plt.subplots(figsize=(5,3)) # reduced size
+    fig, ax = plt.subplots(figsize=(4,3)) # reduced size
     ax.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
     ax.axis('equal')
     return fig
@@ -404,17 +404,20 @@ for idx, response in enumerate(st.session_state.responses):
 
     with tab2:
         # Page 2: Live Chat Analysis
-        col1, col2 = st.columns([0.7, 0.3])  # Adjust column widths to 70/30 split
+        col1, col2 = st.columns([0.65, 0.35])  # Adjusted column widths
 
         with col1:
             st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
             if live_chat_messages is not None and sentiment_data is not None:
                 df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
-                st.dataframe(df, height = 400)  # Set a fixed height for the table
+                st.dataframe(df, height=400)  # Set a fixed height for the table
             else:
                 st.write("No live chat data available.")  # Handle case where no data
+
+            # Top Comments Display (Moved below table)
+            st.markdown("<h2 style='text-align: center; color: #FF4500;'>Top Comments</h2>", unsafe_allow_html=True)
             if comments:
-            # Use st.session_state to maintain the state of the toggle
+                # Use st.session_state to maintain the state of the toggle
                 if f"show_comments_{idx}" not in st.session_state:
                     st.session_state[f"show_comments_{idx}"] = False
 
@@ -422,30 +425,29 @@ for idx, response in enumerate(st.session_state.responses):
                 st.session_state[f"show_comments_{idx}"] = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}", value=st.session_state[f"show_comments_{idx}"])
 
                 if st.session_state[f"show_comments_{idx}"]:
-                    st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
+                    st.markdown(f"<h3 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h3>", unsafe_allow_html=True)
                     for comment in comments['positive_comments_list']:
                         st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
 
-                    st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
+                    st.markdown(f"<h3 style='text-align: center; color: #FF6347;'>👎 Top 3 Negative Comments:</h3>", unsafe_allow_html=True)
                     for comment in comments['negative_comments_list']:
                         st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
             else:
-                st.write("No comment data available.") # Handle case where no comments
+                st.write("No comment data available.")  # Handle case where no comments
 
         with col2:
-
             if comments:
-                st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
+
+                st.markdown(f"<h3 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h3>", unsafe_allow_html=True)
                 st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
 
                 # Plot and display pie chart for comments sentiment
-                fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
-                st.pyplot(fig)
+                st.pyplot(plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments']))
 
-                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h3>", unsafe_allow_html=True)
                 st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
-                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
+                st.markdown(f"<h3 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h3>", unsafe_allow_html=True)
                 st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
 
 
@@ -479,10 +481,6 @@ for idx, response in enumerate(st.session_state.responses):
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
         else:
             st.write("No summary generated yet. Waiting for the summary to load. Please wait...") # Handle no summary
-
-
-
-
 
 
 
