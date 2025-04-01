@@ -482,8 +482,6 @@ for idx, response in enumerate(st.session_state.responses):
         else:
             st.write("No summary generated yet. Waiting for the summary to load. Please wait...") # Handle no summary
 
-
-
 # import re
 # import json
 # import os
