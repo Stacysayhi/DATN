@@ -44,8 +44,8 @@ def load_model():
 
             device = "cuda" if torch.cuda.is_available() else "cpu"
             model.to(device)
-            st.success(f"Sentiment Analysis Model loaded successfully and moved to {device}!", icon="✅") # Success message
-            print(f"Model loaded successfully from {model_path} and moved to {device}")
+            #st.success(f"Sentiment Analysis Model loaded successfully and moved to {device}!", icon="✅") # Success message - REMOVED
+            print(f"Model loaded successfully from {model_path} and moved to {device}") #Leave it in the background log, not on the UI
             return tokenizer, model
         except Exception as e:
             st.error(f"Error loading model from {model_path}: {e}", icon="🚨")
@@ -250,7 +250,7 @@ def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     colors = ['#DFF0D8', '#F2DEDE', '#EAEAEA']
     explode = (0.1, 0, 0)
 
-    fig, ax = plt.subplots(figsize=(6, 4))  # Enlarged pie chart
+    fig, ax = plt.subplots(figsize=(7, 5))  # Even larger pie chart
     ax.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
     ax.axis('equal')
     return fig
@@ -407,7 +407,7 @@ for idx, response in enumerate(st.session_state.responses):
 
     with tab2:
         # Page 2: Live Chat Analysis
-        col1, col2 = st.columns([0.65, 0.35])  # Adjusted column widths
+        col1, col2 = st.columns([0.8, 0.2])  # Adjusted column widths: 80% table, 20% pie chart and rest
 
         with col1:
             st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
@@ -417,27 +417,6 @@ for idx, response in enumerate(st.session_state.responses):
 
             else:
                 st.write("No live chat data available.")  # Handle case where no data
-
-            # Top Comments Display (Moved below table)
-            st.markdown("<h2 style='text-align: center; color: #FF4500;'>Top Comments</h2>", unsafe_allow_html=True)
-            if comments:
-
-                # Add a toggle button to show/hide the top comments
-                if f"show_comments_{idx}" not in st.session_state:
-                    st.session_state[f"show_comments_{idx}"] = True #Auto checked the box
-
-                st.session_state[f"show_comments_{idx}"] = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}", value=st.session_state[f"show_comments_{idx}"])
-
-                if st.session_state[f"show_comments_{idx}"]:
-                    st.markdown(f"<h3 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h3>", unsafe_allow_html=True)
-                    for comment in comments['positive_comments_list']:
-                        st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
-
-                    st.markdown(f"<h3 style='text-align: center; color: #FF6347;'>👎 Top 3 Negative Comments:</h3>", unsafe_allow_html=True)
-                    for comment in comments['negative_comments_list']:
-                        st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
-            else:
-                st.write("No comment data available.")  # Handle case where no comments
 
         with col2:
             if comments:
@@ -454,6 +433,35 @@ for idx, response in enumerate(st.session_state.responses):
 
                 st.markdown(f"<h3 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h3>", unsafe_allow_html=True)
                 st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+
+        # Top Comments Display (Moved below the two Columns)
+        st.markdown("<h2 style='text-align: center; color: #FF4500;'>Top Comments</h2>", unsafe_allow_html=True)
+        if comments:
+
+            # Add a toggle button to show/hide the top comments
+            if f"show_comments_{idx}" not in st.session_state:
+                st.session_state[f"show_comments_{idx}"] = True  # Auto checked the box
+
+            st.session_state[f"show_comments_{idx}"] = st.checkbox("Show Top Comments",
+                                                                    key=f"toggle_comments_{idx}",
+                                                                    value=st.session_state[f"show_comments_{idx}"])
+
+            if st.session_state[f"show_comments_{idx}"]:
+                st.markdown(f"<h3 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h3>",
+                            unsafe_allow_html=True)
+                for comment in comments['positive_comments_list']:
+                    st.markdown(
+                        f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>",
+                        unsafe_allow_html=True)
+
+                st.markdown(f"<h3 style='text-align: center; color: #FF6347;'>👎 Top 3 Negative Comments:</h3>",
+                            unsafe_allow_html=True)
+                for comment in comments['negative_comments_list']:
+                    st.markdown(
+                        f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>",
+                        unsafe_allow_html=True)
+        else:
+            st.write("No comment data available.")  # Handle case where no comments
 
 
 
