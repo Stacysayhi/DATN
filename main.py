@@ -356,42 +356,33 @@ def display_sentiment_visualization(video_description, video_live_chat):
 
 
 # Setup Streamlit app
-st.set_page_config(page_title="🎥 YouTube Video Sentiment and Summarization", layout="wide") # Use wide layout
+st.set_page_config(page_title="🎥 YouTube Video Sentiment and Summarization")
 st.markdown("<h1 style='text-align: center; color: #FF5733;'>🎥 YouTube Video Sentiment and Summarization 🎯</h1>", unsafe_allow_html=True)
 
 # Initialize session state
 if 'responses' not in st.session_state:
     st.session_state.responses = []
-if 'last_youtube_link' not in st.session_state:
-     st.session_state.last_youtube_link = ""
 
 # Unique key for text input
-youtube_link = st.text_input("🔗 Enter YouTube Video Link Below:", key="youtube_link_input", value=st.session_state.get("last_youtube_link", ""))
+youtube_link = st.text_input("🔗 Enter YouTube Video Link Below:", key="youtube_link_input")
 
-# Placeholder for dynamic content updates
-results_placeholder = st.container()
+# Clear the display when a new URL is entered
+if youtube_link and 'last_youtube_link' in st.session_state and youtube_link != st.session_state.last_youtube_link:
+    st.empty()  # Clear all elements on the page
 
-# --- Logic moved below input/button ---
+# Store the current YouTube link
+st.session_state.last_youtube_link = youtube_link
 
 # Add Submit URL button below the URL input field
 if st.button("🔍 Analyze Video"):
     if youtube_link.strip() == "":
         st.session_state.responses = []
-        st.session_state.last_youtube_link = ""
-        st.warning("Input cleared. All previous results removed.")
-        # Clear the placeholder explicitly if needed
-        results_placeholder.empty()
-    elif youtube_link != st.session_state.last_youtube_link:
-        # New link entered, clear previous results and analyze
-        st.session_state.responses = []
-        st.session_state.last_youtube_link = youtube_link # Store the new link
-
+        st.write("The video link has been removed. All previous responses have been cleared.")
+    else:
         with st.spinner('Collecting video information...'):
             video_id = extract_video_id(youtube_link)
             if video_id:
                 try:
-                    # Replace with your actual API_KEY
-                    API_KEY = "YOUR_API_KEY" # Define or get your API key
                     clean_description, clean_live_chat, video_title, live_chat_messages = get_desc_chat(youtube_link, API_KEY)
 
                     # Analyze sentiment for all live chat messages (batched)
@@ -402,7 +393,7 @@ if st.button("🔍 Analyze Video"):
 
                     positive_count = sum(1 for s in sentiment_data if s == "Positive")
                     negative_count = sum(1 for s in sentiment_data if s == "Negative")
-                    total_comments = len(sentiment_data) if sentiment_data else 0 # Handle empty chat
+                    total_comments = len(sentiment_data)
 
                     # Get top comments directly, passing in the sentiment labels we already calculated
                     positive_comments, negative_comments = get_top_comments(live_chat_messages, sentiment_data)
@@ -414,7 +405,12 @@ if st.button("🔍 Analyze Video"):
                         'thumbnail_url': f"http://img.youtube.com/vi/{video_id}/0.jpg",
                         'video_details': {
                             'title': video_title,
-                            # Add other details if you fetch them
+                            'channel_title': None,
+                            'view_count': None,
+                            'upload_date': None,
+                            'duration': None,
+                            'like_count': None,
+                            'dislike_count': None
                         },
                         'comments': {
                             'total_comments': total_comments,
@@ -423,158 +419,111 @@ if st.button("🔍 Analyze Video"):
                             'positive_comments_list': positive_comments,
                             'negative_comments_list': negative_comments
                         },
-                        "description": clean_description or "No description provided.", # Handle empty description
-                        "video_id": video_id,
-                        "sentiment_data": sentiment_data,
+                        "description": clean_description,
+                        "video_id": video_id,  # Store video ID
+                        "sentiment_data": sentiment_data, # Store so table can be loaded.
                         "live_chat_messages": live_chat_messages,
-                        "description_sentiment": description_sentiment,
+                        "description_sentiment": description_sentiment, # Store sentiment of description
                     }
-                    st.session_state.responses = [response] # Replace responses with the new one
+                    st.session_state.responses.append(response)
 
                 except Exception as e:
-                    st.error(f"An error occurred during analysis: {e}")
-                    st.session_state.responses = [] # Clear results on error
+                    st.error(f"Error: {e}")
             else:
                 st.error("Invalid YouTube URL")
-                st.session_state.responses = [] # Clear results on invalid URL
-    # If the button is clicked but the URL is the same, do nothing, just redisplay.
-
-# Display stored responses using tabs (inside the placeholder)
-with results_placeholder:
-    if not st.session_state.responses:
-        st.info("Enter a YouTube URL and click 'Analyze Video' to see results.")
-    else:
-        # Displaying only the latest response (index 0, as we clear and add one)
-        response = st.session_state.responses[0]
-        idx = 0 # Since we only have one response now
-
-        video_details = response.get('video_details')
-        comments = response.get('comments')
-        live_chat_messages = response.get('live_chat_messages')
-        sentiment_data = response.get('sentiment_data')
-
-        # No need for st.header(f"Analysis of Video #{idx+1}") if only showing one
-
-        # Create tabs
-        tab1, tab2, tab3 = st.tabs(["📊 Video Info", "💬 Live Chat Analysis", "📝 Summary"])
-
-        # --- Tab 1: Video Info (Landscape Layout) ---
-        with tab1:
-            col1, col2 = st.columns([1, 2]) # Ratio: 1 part for image, 2 parts for text
-
-            with col1:
-                st.image(response['thumbnail_url'], use_column_width='always')
-
-            with col2:
-                st.markdown(f"<h3 style='color: #FF4500;'>📹 Video Title:</h3>", unsafe_allow_html=True)
-                st.markdown(f"{video_details['title']}") # No need for <p> tag, st.markdown handles it
-
-                st.markdown("---") # Visual separator
-
-                st.markdown(f"<h3 style='color: #FF4500;'>📝 Description:</h3>", unsafe_allow_html=True)
-                # Use an expander for potentially long descriptions
-                with st.expander("View Description"):
-                    st.markdown(f"{response['description']}")
-
-                st.markdown("---") # Visual separator
-
-                st.markdown(f"<h3 style='color: #FF4500;'>📊 Description Sentiment:</h3>", unsafe_allow_html=True)
-                st.markdown(f"{response['description_sentiment']}")
-
-        # --- Tab 2: Live Chat Analysis ---
-        with tab2:
-            st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment Analysis</h2>", unsafe_allow_html=True)
-
-            # Layout for Pie Chart and Stats
-            col_chart, col_stats = st.columns([1, 1])
-
-            with col_chart:
-                if comments and comments['total_comments'] > 0:
-                     st.markdown("<h3 style='text-align: center;'>Sentiment Distribution</h3>", unsafe_allow_html=True)
-                     fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
-                     st.pyplot(fig, use_container_width=True)
-                elif comments and comments['total_comments'] == 0:
-                    st.info("No comments found for sentiment analysis.")
-                else:
-                    st.warning("Comment data not available.")
-
-            with col_stats:
-                 st.markdown("<h3 style='text-align: center;'>Statistics</h3>", unsafe_allow_html=True)
-                 if comments and comments['total_comments'] > 0:
-                    st.metric(label="Total Comments Analyzed", value=f"{comments['total_comments']}")
-                    st.metric(label="👍 Positive Comments", value=f"{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.1f}%)")
-                    st.metric(label="👎 Negative Comments", value=f"{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.1f}%)")
-                    neutral_comments = comments['total_comments'] - comments['positive_comments'] - comments['negative_comments']
-                    st.metric(label="😐 Neutral Comments", value=f"{neutral_comments} ({(neutral_comments/comments['total_comments'])*100:.1f}%)")
-                 else:
-                     st.markdown("<p style='text-align: center;'>No comment statistics available.</p>", unsafe_allow_html=True)
 
 
-            st.markdown("---") # Visual separator
+# Display stored responses using tabs
+for idx, response in enumerate(st.session_state.responses):
+    video_details = response.get('video_details')
+    comments = response.get('comments')
+    live_chat_messages = response.get('live_chat_messages')
+    sentiment_data = response.get('sentiment_data')
 
-            # Live Chat Table and Top Comments Section
-            st.markdown("<h3 style='color: #FF4500;'>📜 Live Chat Messages & Sentiment</h3>", unsafe_allow_html=True)
-            if live_chat_messages is not None and sentiment_data is not None and len(live_chat_messages) > 0:
-                df = pd.DataFrame({'Live Chat Message': live_chat_messages, 'Sentiment': sentiment_data})
-                st.dataframe(df, use_container_width=True) # Use container width
-            else:
-                st.info("No live chat messages found or available.")
+    st.header(f"Analysis of Video #{idx+1}")
 
-            if comments and comments['total_comments'] > 0:
-                # Use st.expander to optionally show top comments
-                 with st.expander("View Top 3 Positive/Negative Comments"):
-                    col_pos, col_neg = st.columns(2)
-                    with col_pos:
-                        st.markdown(f"<h4 style='color: #32CD32;'>👍 Top Positive Comments:</h4>", unsafe_allow_html=True)
-                        if comments['positive_comments_list']:
-                            for comment in comments['positive_comments_list']:
-                                st.markdown(f"<div style='background-color: #E8F5E9; padding: 8px; border-radius: 5px; margin-bottom: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
-                        else:
-                            st.write("No positive comments found.")
+    # Create tabs
+    tab1, tab2, tab3 = st.tabs(["Video Info", "Live Chat Analysis", "Summary"])
 
-                    with col_neg:
-                        st.markdown(f"<h4 style='color: #FF6347;'>👎 Top Negative Comments:</h4>", unsafe_allow_html=True)
-                        if comments['negative_comments_list']:
-                            for comment in comments['negative_comments_list']:
-                                st.markdown(f"<div style='background-color: #FFEBEE; padding: 8px; border-radius: 5px; margin-bottom: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
-                        else:
-                            st.write("No negative comments found.")
-            # No need for the old checkbox logic
+    with tab1:
+        # Page 1: Video Information
+        st.markdown("<h2 style='text-align: center; color: #FF4500;'>📹 Video Title:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{video_details['title']}</p>", unsafe_allow_html=True)
 
+        st.image(response['thumbnail_url'], use_column_width=True)
 
-        # --- Tab 3: Summary ---
-        with tab3:
-            st.markdown("<h2 style='text-align: center; color: #1E90FF;'>📜 AI Generated Summary</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
 
-            # Button to generate summary
-            if 'transcript_summary' not in response:
-                 # Use a unique key based on video_id to avoid conflicts if multiple analyses were possible
-                if st.button("✨ Generate Summary", key=f"summarize_{response['video_id']}"):
-                    with st.spinner("Generating summary... This may take a moment."):
-                        try:
-                            video_id = response["video_id"]
-                            print(f"Attempting to retrieve transcript for video ID: {video_id}") # Debugging line
-                            transcript = get_sub(video_id) # Replace with your actual function call
-                            if transcript:
-                                summary = get_gemini_response(transcript) # Replace with your actual function call
-                                if summary:
-                                    # Update the specific response in session state
-                                    st.session_state.responses[idx]['transcript_summary'] = summary
-                                    # Force rerun to display the summary immediately
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Failed to generate summary from the model.")
+        st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Description Sentiment:</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center;'>{response['description_sentiment']}</p>", unsafe_allow_html=True)
+
+    with tab2:
+        # Page 2: Live Chat Analysis
+        st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
+        if live_chat_messages is not None and sentiment_data is not None:
+            df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
+            st.dataframe(df)  # Use st.dataframe for a DataFrame
+        else:
+            st.write("No live chat data available.")  # Handle case where no data
+
+        if comments:
+            st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
+
+            # Plot and display pie chart for comments sentiment
+            fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
+            st.pyplot(fig)
+
+            st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+
+            st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+
+            # Use st.session_state to maintain the state of the toggle
+            if f"show_comments_{idx}" not in st.session_state:
+                st.session_state[f"show_comments_{idx}"] = False
+
+            # Add a toggle button to show/hide the top comments
+            st.session_state[f"show_comments_{idx}"] = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}", value=st.session_state[f"show_comments_{idx}"])
+
+            if st.session_state[f"show_comments_{idx}"]:
+                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Top 3 Positive Comments:</h2>", unsafe_allow_html=True)
+                for comment in comments['positive_comments_list']:
+                    st.markdown(f"<div style='background-color: #DFF0D8; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+
+                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎Top 3 Negative Comments:</h2>", unsafe_allow_html=True)
+                for comment in comments['negative_comments_list']:
+                    st.markdown(f"<div style='background-color: #F2DEDE; padding: 10px; border-radius: 5px; color: black;'>{comment}</div>", unsafe_allow_html=True)
+        else:
+            st.write("No comment data available.") # Handle case where no comments
+
+    with tab3:
+        # Page 3: Summary
+        # Button to generate summary
+        if 'transcript_summary' not in response:
+            if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
+                with st.spinner("Generating summary..."):
+                    try:  # Add try-except block for more robust error handling
+                        video_id = response["video_id"]  # Get video ID from the response
+                        print(f"Attempting to retrieve transcript for video ID: {video_id}") # Debugging line
+                        transcript = get_sub(video_id)
+                        if transcript:
+                            summary = get_gemini_response(transcript)  # Call Gemini
+                            if summary:
+                                response['transcript_summary'] = summary
+                                st.session_state.responses[idx] = response
                             else:
-                                st.warning("⚠️ Could not retrieve transcript. Summary cannot be generated.")
-                        except Exception as e:
-                            st.error(f"❌ An error occurred during summary generation: {e}")
-                            print(f"Summary generation error: {e}") # Log error for debugging
+                                st.error("Failed to generate summary from Gemini.")
+                        else:
+                            st.error("Failed to retrieve transcript.")
+                    except Exception as e:
+                        st.error(f"An error occurred during summary generation: {e}")
 
-            # Display generated summary if available
-            if 'transcript_summary' in response:
-                st.markdown(f"<div style='background-color: #E3F2FD; padding: 15px; border-radius: 8px; border: 1px solid #BBDEFB; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
-            elif 'transcript_summary' not in response and st.session_state.get(f"summarize_{response['video_id']}_clicked", False):
-                 # Optional: Indicate that summary generation was attempted but failed or no transcript
-                 pass # Error/Warning messages handled above
-            else:
-                 st.info("Click the 'Generate Summary' button above to create a summary from the video transcript.")
+        # Display generated summary
+        if 'transcript_summary' in response:
+            st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
+            st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
+        else:
+            st.write("No summary generated yet. Click 'Generate Summary' to create one.") # Handle no summary
