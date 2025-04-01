@@ -1,3 +1,33 @@
+# import re
+# import json
+# import os
+# import streamlit as st
+# import torch
+# from transformers import AutoTokenizer, AutoModelForSequenceClassification
+# import yt_dlp
+# from googleapiclient.discovery import build
+# import logging
+# import matplotlib.pyplot as plt
+# import numpy as np
+# from youtube_transcript_api import YouTubeTranscriptApi
+# import pandas as pd
+# import google.generativeai as genai  # Import the Gemini library
+
+# # Your API Key - should be stored securely, not hardcoded
+# API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual YouTube Data API key
+# GOOGLE_API_KEY = "AIzaSyArb6Eme11X4tl8mhreEQUfRLkTjqTP59I"  # Replace with your Gemini API key
+
+# # Configure logging
+# logging.basicConfig(filename='app.log', level=logging.ERROR,
+#                     format='%(asctime)s - %(levelname)s - %(message)s')
+
+# # Configure Gemini API
+# genai.configure(api_key=GOOGLE_API_KEY)
+
+# MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
+# MODEL_FILE = "sentiment_classifier (1).pth"
+
+
 import re
 import json
 import os
@@ -7,11 +37,16 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import yt_dlp
 from googleapiclient.discovery import build
 import logging
+import matplotlib
+
+matplotlib.use('Agg')  # Add this line before importing pyplot
+
 import matplotlib.pyplot as plt
 import numpy as np
 from youtube_transcript_api import YouTubeTranscriptApi
 import pandas as pd
 import google.generativeai as genai  # Import the Gemini library
+import streamlit.components.v1 as components
 
 # Your API Key - should be stored securely, not hardcoded
 API_KEY = "AIzaSyBhEqWTbT3v_jVr9VBr3HYKi3dEjKc83-M"  # Replace with your actual YouTube Data API key
@@ -26,7 +61,6 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
 MODEL_FILE = "sentiment_classifier (1).pth"
-
 
 
 @st.cache_resource
@@ -532,6 +566,4 @@ for idx, response in enumerate(st.session_state.responses):
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
         else:
             st.write("No summary generated yet. Click 'Generate Summary' to create one.") # Handle no summary
-# --- Footer or additional info ---
-st.markdown("---")
-st.caption("Sentiment analysis powered by PhoBERT. Summarization by Google Gemini.")
+
