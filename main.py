@@ -27,7 +27,7 @@ genai.configure(api_key=GOOGLE_API_KEY)
 MODEL_PATH = ""  # Set this to the directory if you have a folder ofr the weights, other wise it would be ""
 MODEL_FILE = "sentiment_classifier (1).pth"
 
-
+MODEL_ID = "wonrax/phobert-base-vietnamese-sentiment"
 @st.cache_resource
 def load_model():
     """Loads the sentiment analysis model and tokenizer."""
