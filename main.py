@@ -527,16 +527,16 @@ else:
                              fig = plot_sentiment_pie_chart_plotly(positive, negative, total)
                              st.plotly_chart(fig, use_container_width=True) # Key: use container width
 
-                             # Display Metrics using st.metric for a cleaner look
-                             st.metric(label="Total Comments Analyzed", value=f"{total}")
+                             # # Display Metrics using st.metric for a cleaner look
+                             # st.metric(label="Total Comments Analyzed", value=f"{total}")
 
-                             pos_perc = (positive / total) * 100 if total > 0 else 0
-                             neg_perc = (negative / total) * 100 if total > 0 else 0
-                             neu_perc = (neutral / total) * 100 if total > 0 else 0 # Calculate neutral percentage
+                             # pos_perc = (positive / total) * 100 if total > 0 else 0
+                             # neg_perc = (negative / total) * 100 if total > 0 else 0
+                             # neu_perc = (neutral / total) * 100 if total > 0 else 0 # Calculate neutral percentage
 
-                             st.metric(label="😊 Positive", value=f"{positive}", delta=f"{pos_perc:.1f}%")
-                             st.metric(label="😠 Negative", value=f"{negative}", delta=f"{neg_perc:.1f}%")
-                             st.metric(label="😐 Neutral", value=f"{neutral}", delta=f"{neu_perc:.1f}%")
+                             # st.metric(label="😊 Positive", value=f"{positive}", delta=f"{pos_perc:.1f}%")
+                             # st.metric(label="😠 Negative", value=f"{negative}", delta=f"{neg_perc:.1f}%")
+                             # st.metric(label="😐 Neutral", value=f"{neutral}", delta=f"{neu_perc:.1f}%")
 
                         else:
                             st.info("No comments were analyzed.")
