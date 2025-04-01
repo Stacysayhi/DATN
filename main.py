@@ -33,33 +33,30 @@ MODEL_FILE = "sentiment_classifier (1).pth"
 
 @st.cache_resource
 def load_model():
-    model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
-    # tokenizer_path = MODEL_PATH  # Tokenizer usually saved in the same directory as the model
-    model_id = "wonrax/phobert-base-vietnamese-sentiment"
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        # **Important:** Replace with the correct model class if needed
-        model = AutoModelForSequenceClassification.from_pretrained(model_id) #Or RobertaForSequenceClassification
+    with st.spinner("Loading Sentiment Analysis Model..."):  # Professional loading message
+        model_path = os.path.join(MODEL_PATH, MODEL_FILE)  # Full path to the .pth file
+        model_id = "wonrax/phobert-base-vietnamese-sentiment"
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_id)
+            model = AutoModelForSequenceClassification.from_pretrained(model_id)
 
-        # Load the state dictionary from the saved .pth file
-        # Try strict=False *only* if you understand the implications
-        model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
+            model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')), strict=False)
 
-        # Move model to GPU if available
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model.to(device)
-        print(f"Model loaded successfully from {model_path} and moved to {device}")
-        return tokenizer, model
-    except Exception as e:
-        st.error(f"Error loading model from {model_path}: {e}")
-        logging.error(f"Error loading model from {model_path}: {e}")
-        return None, None  # Return None values to indicate loading failure
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model.to(device)
+            st.success(f"Sentiment Analysis Model loaded successfully and moved to {device}!", icon="✅") # Success message
+            print(f"Model loaded successfully from {model_path} and moved to {device}")
+            return tokenizer, model
+        except Exception as e:
+            st.error(f"Error loading model from {model_path}: {e}", icon="🚨")
+            logging.error(f"Error loading model from {model_path}: {e}")
+            return None, None  # Return None values to indicate loading failure
 
 
 def analyze_sentiment(text):
     tokenizer, model = load_model()
     if tokenizer is None or model is None:
-        st.error("Model loading failed. Sentiment analysis is unavailable.")
+        st.error("Model loading failed. Sentiment analysis is unavailable.", icon="🚨")
         return "Error", [0, 0, 0]  # Return a default sentiment and scores
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -253,7 +250,7 @@ def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     colors = ['#DFF0D8', '#F2DEDE', '#EAEAEA']
     explode = (0.1, 0, 0)
 
-    fig, ax = plt.subplots(figsize=(4,3)) # reduced size
+    fig, ax = plt.subplots(figsize=(6, 4))  # Enlarged pie chart
     ax.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
     ax.axis('equal')
     return fig
@@ -417,17 +414,18 @@ for idx, response in enumerate(st.session_state.responses):
             if live_chat_messages is not None and sentiment_data is not None:
                 df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
                 st.dataframe(df, height=400)  # Set a fixed height for the table
+
             else:
                 st.write("No live chat data available.")  # Handle case where no data
 
             # Top Comments Display (Moved below table)
             st.markdown("<h2 style='text-align: center; color: #FF4500;'>Top Comments</h2>", unsafe_allow_html=True)
             if comments:
-                # Use st.session_state to maintain the state of the toggle
-                if f"show_comments_{idx}" not in st.session_state:
-                    st.session_state[f"show_comments_{idx}"] = False
 
                 # Add a toggle button to show/hide the top comments
+                if f"show_comments_{idx}" not in st.session_state:
+                    st.session_state[f"show_comments_{idx}"] = True #Auto checked the box
+
                 st.session_state[f"show_comments_{idx}"] = st.checkbox("Show Top Comments", key=f"toggle_comments_{idx}", value=st.session_state[f"show_comments_{idx}"])
 
                 if st.session_state[f"show_comments_{idx}"]:
@@ -448,7 +446,8 @@ for idx, response in enumerate(st.session_state.responses):
                 st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
 
                 # Plot and display pie chart for comments sentiment
-                st.pyplot(plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments']))
+                fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
+                st.pyplot(fig)
 
                 st.markdown(f"<h3 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h3>", unsafe_allow_html=True)
                 st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
@@ -461,24 +460,25 @@ for idx, response in enumerate(st.session_state.responses):
     with tab3:
         # Page 3: Summary
 
-        # Button to generate summary
+        # Generate summary with button
         if 'transcript_summary' not in response:
-            with st.spinner("Generating summary..."):
-                try:  # Add try-except block for more robust error handling
-                    video_id = response["video_id"]  # Get video ID from the response
-                    print(f"Attempting to retrieve transcript for video ID: {video_id}") # Debugging line
-                    transcript = get_sub(video_id)
-                    if transcript:
-                        summary = get_gemini_response_with_retry(transcript)  # Call Gemini, with retry
-                        if summary:
-                            response['transcript_summary'] = summary
-                            st.session_state.responses[idx] = response
+            if st.button("📜 Generate Summary", key=f"summarize_{idx}"): #Adding the generate summary back
+                with st.spinner("Generating summary..."):
+                    try:  # Add try-except block for more robust error handling
+                        video_id = response["video_id"]  # Get video ID from the response
+                        print(f"Attempting to retrieve transcript for video ID: {video_id}") # Debugging line
+                        transcript = get_sub(video_id)
+                        if transcript:
+                            summary = get_gemini_response_with_retry(transcript)  # Call Gemini, with retry
+                            if summary:
+                                response['transcript_summary'] = summary
+                                st.session_state.responses[idx] = response
+                            else:
+                                st.error("Failed to generate summary from Gemini after multiple attempts.", icon="🚨")
                         else:
-                            st.error("Failed to generate summary from Gemini after multiple attempts.")
-                    else:
-                        st.error("Failed to retrieve transcript.")
-                except Exception as e:
-                    st.error(f"An error occurred during summary generation: {e}")
+                            st.error("Failed to retrieve transcript.", icon="🚨")
+                    except Exception as e:
+                        st.error(f"An error occurred during summary generation: {e}", icon="🚨")
 
 
         # Display generated summary
@@ -486,7 +486,7 @@ for idx, response in enumerate(st.session_state.responses):
             st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
         else:
-            st.write("No summary generated yet. Waiting for the summary to load. Please wait...") # Handle no summary
+            st.write("No summary generated yet. Please click 'Generate Summary' to create one.") #Updated prompt
 # import re
 # import json
 # import os
