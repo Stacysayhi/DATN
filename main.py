@@ -252,7 +252,7 @@ def plot_sentiment_pie_chart(positive_count, negative_count, total_comments):
     colors = ['#DFF0D8', '#F2DEDE', '#EAEAEA']
     explode = (0.1, 0, 0)
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(5,3)) # reduced size
     ax.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', startangle=140)
     ax.axis('equal')
     return fig
@@ -292,70 +292,6 @@ def get_gemini_response(transcript_text):
     except Exception as e:
         logging.error(f"Error generating Gemini response: {e}")
         return None
-
-# Function to create and display the sentiment analysis visualization
-def display_sentiment_visualization(video_description, video_live_chat):
-    sentiment_labels = ["Negative", "Neutral", "Positive"]
-
-    # Analyze comments
-    comments_results = []
-    for comment in video_live_chat:
-        sentiment_label, scores = analyze_sentiment(comment)
-        comments_results.append(
-            {
-                "Text": comment,
-                "Sentiment": sentiment_label,
-                **{
-                    label: scores[i] * 100
-                    for i, label in enumerate(sentiment_labels)
-                },
-            }
-        )
-
-    # Analyze description
-    sentiment_label, description_scores = analyze_sentiment(video_description)
-    description_scores = description_scores * 100
-
-    # Create visualization
-    fig = make_subplots(
-        rows=2, cols=1, subplot_titles=("Description Analysis", "Comments Analysis")
-    )
-
-    # Description visualization
-    fig.add_trace(
-        go.Bar(
-            name="Description Sentiment", x=sentiment_labels, y=description_scores
-        ),
-        row=1,
-        col=1,
-    )
-
-    # Comments visualization
-    for i, label in enumerate(sentiment_labels):
-        scores = [result[label] for result in comments_results]
-        fig.add_trace(
-            go.Bar(name=label, x=list(range(1, len(scores) + 1)), y=scores),
-            row=2,
-            col=1,
-        )
-
-    fig.update_layout(height=700, barmode="group")
-    st.plotly_chart(fig)
-
-    # Display results
-    st.subheader("Description Analysis")
-    st.write(
-        f"**Overall Sentiment:** {sentiment_labels[np.argmax(description_scores)]}"
-    )
-    st.write(
-        f"**Scores:** {', '.join([f'{label}: {description_scores[i]:.2f}%' for i, label in enumerate(sentiment_labels)])}"
-    )
-    st.write(f"**Text:** {video_description}")
-
-    st.subheader("Comments Analysis")
-    comments_df = pd.DataFrame(comments_results)
-    st.dataframe(comments_df)
-
 
 # Setup Streamlit app
 st.set_page_config(page_title="🎥 YouTube Video Sentiment and Summarization", layout="wide") # Set layout to wide
@@ -458,39 +394,27 @@ for idx, response in enumerate(st.session_state.responses):
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📝 Description:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{response['description']}</p>", unsafe_allow_html=True)
 
-        with col2:
-            st.image(response['thumbnail_url'], use_column_width=True)
             st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>📊 Description Sentiment:</h2>", unsafe_allow_html=True)
             st.markdown(f"<p style='text-align: center;'>{response['description_sentiment']}</p>", unsafe_allow_html=True)
 
+        with col2:
+            st.image(response['thumbnail_url'], use_column_width=True)
+
+
+
     with tab2:
         # Page 2: Live Chat Analysis
-        col1, col2 = st.columns(2)  # Create two columns
+        col1, col2 = st.columns([0.7, 0.3])  # Adjust column widths to 70/30 split
 
         with col1:
             st.markdown("<h2 style='text-align: center; color: #FF4500;'>💬 Live Chat Sentiment:</h2>", unsafe_allow_html=True)
             if live_chat_messages is not None and sentiment_data is not None:
                 df = pd.DataFrame({'Live Chat': live_chat_messages, 'Sentiment': sentiment_data})
-                st.dataframe(df)  # Use st.dataframe for a DataFrame
+                st.dataframe(df, height = 400)  # Set a fixed height for the table
             else:
                 st.write("No live chat data available.")  # Handle case where no data
-
-        with col2:
             if comments:
-                st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
-
-                # Plot and display pie chart for comments sentiment
-                fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
-                st.pyplot(fig)
-
-                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
-
-                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
-
-                # Use st.session_state to maintain the state of the toggle
+            # Use st.session_state to maintain the state of the toggle
                 if f"show_comments_{idx}" not in st.session_state:
                     st.session_state[f"show_comments_{idx}"] = False
 
@@ -508,35 +432,54 @@ for idx, response in enumerate(st.session_state.responses):
             else:
                 st.write("No comment data available.") # Handle case where no comments
 
+        with col2:
+
+            if comments:
+                st.markdown(f"<h2 style='text-align: center; color: #FF4500;'>💬 Total Comments:</h2>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align: center;'>{comments['total_comments']}</p>", unsafe_allow_html=True)
+
+                # Plot and display pie chart for comments sentiment
+                fig = plot_sentiment_pie_chart(comments['positive_comments'], comments['negative_comments'], comments['total_comments'])
+                st.pyplot(fig)
+
+                st.markdown(f"<h2 style='text-align: center; color: #32CD32;'>👍 Positive Comments:</h2>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align: center;'>{comments['positive_comments']} ({(comments['positive_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+
+                st.markdown(f"<h2 style='text-align: center; color: #FF6347;'>👎 Negative Comments:</h2>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align: center;'>{comments['negative_comments']} ({(comments['negative_comments']/comments['total_comments'])*100:.2f}%)</p>", unsafe_allow_html=True)
+
+
+
     with tab3:
         # Page 3: Summary
-        st.markdown("<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
 
         # Button to generate summary
         if 'transcript_summary' not in response:
-            if st.button("📜 Generate Summary", key=f"summarize_{idx}"):
-                with st.spinner("Generating summary..."):
-                    try:  # Add try-except block for more robust error handling
-                        video_id = response["video_id"]  # Get video ID from the response
-                        print(f"Attempting to retrieve transcript for video ID: {video_id}") # Debugging line
-                        transcript = get_sub(video_id)
-                        if transcript:
-                            summary = get_gemini_response(transcript)  # Call Gemini
-                            if summary:
-                                response['transcript_summary'] = summary
-                                st.session_state.responses[idx] = response
-                            else:
-                                st.error("Failed to generate summary from Gemini.")
+            with st.spinner("Generating summary..."):
+                try:  # Add try-except block for more robust error handling
+                    video_id = response["video_id"]  # Get video ID from the response
+                    print(f"Attempting to retrieve transcript for video ID: {video_id}") # Debugging line
+                    transcript = get_sub(video_id)
+                    if transcript:
+                        summary = get_gemini_response(transcript)  # Call Gemini
+                        if summary:
+                            response['transcript_summary'] = summary
+                            st.session_state.responses[idx] = response
                         else:
-                            st.error("Failed to retrieve transcript.")
-                    except Exception as e:
-                        st.error(f"An error occurred during summary generation: {e}")
+                            st.error("Failed to generate summary from Gemini.")
+                    else:
+                        st.error("Failed to retrieve transcript.")
+                except Exception as e:
+                    st.error(f"An error occurred during summary generation: {e}")
+
 
         # Display generated summary
         if 'transcript_summary' in response:
+            st.markdown(f"<h2 style='text-align: center; color: #1E90FF;'>📜 Summary:</h2>", unsafe_allow_html=True)
             st.markdown(f"<div style='background-color: #F0F8FF; padding: 10px; border-radius: 5px; color: black;'>{response['transcript_summary']}</div>", unsafe_allow_html=True)
         else:
-            st.write("No summary generated yet. Click 'Generate Summary' to create one.") # Handle no summary
+            st.write("No summary generated yet. Waiting for the summary to load. Please wait...") # Handle no summary
+
 
 
 
