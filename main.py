@@ -365,7 +365,7 @@ if 'last_youtube_link' not in st.session_state:
 
 # --- Input Area ---
 st.subheader("Enter YouTube Video Link")
-st.caption("e.g., https://www.youtube.com/watch?v=9UdJZvZP4Mg")
+st.markdown("e.g., https://www.youtube.com/watch?v=9UdJZvZP4Mg")
 youtube_link = st.text_input("🔗 Paste the YouTube video URL here:", key="youtube_link_input", label_visibility="collapsed")
 
 # --- Analyze Button and Processing Logic ---
