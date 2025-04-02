@@ -573,7 +573,7 @@ else:
         # --- Tab 3: Summary ---
         with tab3:
             st.subheader("✍️ Video Summary (via Gemini AI)")
-
+            st.markdown("Please try again for 2-3 times until the summary works")
             # Button to trigger summary generation
             summary_key = f"summary_{video_id}_{idx}" # Unique key per video/response
             summary_button_label = "📜 Generate Summary"
